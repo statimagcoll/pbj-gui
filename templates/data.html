@@ -1,0 +1,12 @@
+<script type="text/javascript">
+  var params = [];
+  params["images"] = [
+    {{#study}}
+      {{#images}}
+      "{{.}}",
+      {{/images}}
+    {{/study}}
+  ];
+</script>
+
+<div class="papaya" data-params="params"></div>
