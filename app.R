@@ -3,21 +3,21 @@ library(pbj)
 library(httpuv)
 library(whisker)
 library(openssl)
+library(jsonlite)
 
 PBJStudy <- setRefClass(
   Class = "PBJStudy",
   fields = c("images", "form", "formred", "mask", "data", "W", "Winv",
              "template", "formImages", "robust", "sqrtSigma", "transform",
              "outdir", "zeros", "mc.cores", "statMap", "cfts.s", "cfts.p",
-             "nboot", "kernel", "rboot", "debug", "sPBJ", "index"),
+             "nboot", "kernel", "rboot", "debug", "sPBJ"),
   methods = list(
     initialize = function(images, form, formred, mask, data = NULL, W = NULL,
                           Winv = NULL, template = NULL, formImages = NULL,
                           robust = TRUE, sqrtSigma = TRUE, transform = TRUE,
                           zeros = FALSE, mc.cores = getOption("mc.cores", 2L),
                           cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 5000,
-                          kernel = "box", rboot = stats::rnorm, debug = FALSE,
-                          index = 1) {
+                          kernel = "box", rboot = stats::rnorm, debug = FALSE) {
 
       images <<- images
       form <<- form
@@ -39,7 +39,6 @@ PBJStudy <- setRefClass(
       kernel <<- kernel
       rboot <<- rboot
       debug <<- debug
-      index <<- index
 
       # create temporary directory for output
       outdir <<- tempfile()
@@ -63,8 +62,18 @@ PBJStudy <- setRefClass(
       sPBJ <<- pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug)
     },
 
-    currentImages = function() {
-      c(template, images[index], data$varimages[index])
+    getImages = function() {
+      result <- data.frame(image = images, template = template)
+
+      if (!is.null(W)) {
+        result$weight <- W
+      } else if (!is.null(Winv)) {
+        result$weight <- Winv
+      } else {
+        result$weight <- NA
+      }
+
+      return(result)
     }
   )
 )
@@ -72,7 +81,7 @@ PBJStudy <- setRefClass(
 # create App class for httpuv
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("root", "painRoot", "sessions", "staticPaths"),
+  fields = c("root", "painRoot", "sessions", "staticPaths", "routes"),
   methods = list(
     initialize = function() {
       root <<- getwd()
@@ -85,31 +94,27 @@ App <- setRefClass(
                                fallthrough = TRUE),
         "/pain21" = staticPath(painRoot, fallthrough = TRUE)
       )
+
+      routes <<- list(
+        list(method = "GET", path = "/", handler = .self$getIndex)
+        #list(method = "POST", path = "/statMap", handler = .self$createStatMap)
+      )
     },
 
     call = function(req) {
+      method <- req$REQUEST_METHOD
       path <- req$PATH_INFO
       response <- NULL
-      if (path == "/") {
-        # create a new session
-        token <- createSession()
 
-        # read the study data tab template to use as a partial template
-        dataTemplate <- getTemplate("data.html")
+      for (route in routes) {
+        if (route$method == method && route$path == path) {
+          response <- route$handler(req)
+          break
+        }
+      }
 
-        # render the main template
-        mainTemplate <- getTemplate("index.html")
-        vars <- getTemplateVars(token)
-        body <- whisker.render(mainTemplate, data = vars,
-                               partials = list("data" = dataTemplate))
-
-        # setup the response
-        response <- list(
-          status = 200L, headers = list("Content-Type" = "text/html"),
-          body = body
-        )
-      } else {
-        # path didn't match, return 404
+      if (is.null(response)) {
+        # path didn't match (or handler returned NULL), return 404
         response <- list(
            status = 404L, headers = list('Content-Type' = 'text/plain'),
            body = "Not found"
@@ -119,6 +124,58 @@ App <- setRefClass(
       return(response)
     },
 
+    getIndex = function(req) {
+      # create a new session
+      token <- createSession()
+
+      # read the study data tab template to use as a partial template
+      dataTemplate <- getTemplate("data.html")
+
+      # read the study model tab template to use as a partial template
+      modelTemplate <- getTemplate("model.html")
+
+      # render the main template
+      mainTemplate <- getTemplate("index.html")
+      vars <- getTemplateVars(token)
+      body <- whisker.render(mainTemplate, data = vars,
+                             partials = list("data" = dataTemplate,
+                                             "model" = modelTemplate))
+
+      # setup the response
+      response <- list(
+        status = 200L, headers = list("Content-Type" = "text/html"),
+        body = body
+      )
+      return(response)
+    },
+
+    #createStatMap = function(req) {
+      ## parse request data as JSON
+      #params <- try({
+        #fromJSON(rawToChar(req$rook.input$read()), simplifyVector = FALSE)
+      #}, silent = TRUE)
+
+      #if (inherits(params, "try-error")) {
+        #response <- list(
+          #status = 400L, headers = list("Content-Type" = "application/json"),
+          #body = toJSON(list(error = "invalid JSON"))
+        #)
+        #return(response)
+      #}
+
+      ## validate the request data
+      #errors <- list()
+      #session <- NULL
+      #if (!("token" %in% names(params))) {
+        #errors$token <- "is required"
+      #} else {
+        #session <- getSession(params$token)
+        #if (is.null(session)) {
+          #errors$token <- "is invalid"
+        #}
+      #}
+    #},
+
     createSession = function() {
       # generate a random token
       token <- paste(as.character(rand_bytes(12)), collapse = "")
@@ -126,7 +183,8 @@ App <- setRefClass(
       # create study object
       pain <- pain21()
       study <- PBJStudy$new(pain$data$images, ~ 1, NULL, pain$mask, pain$data,
-                            Winv = pain$data$varimages)
+                            Winv = pain$data$varimages,
+                            template = pain$template)
 
       # save session
       sessions[[token]] <<- list(token = token, study = study)
@@ -147,12 +205,23 @@ App <- setRefClass(
       session <- getSession(token)
       study <- session$study
 
+      images <- study$getImages()
+
       # convert study paths to URLs
-      images <- sub(paste0("^", painRoot), "/pain21", study$currentImages())
+      for (name in names(images)) {
+        images[[name]] <- sub(paste0("^", painRoot), "/pain21", images[[name]])
+      }
+
+      images$index <- 1:nrow(images)
+      images$selected <- 1:nrow(images) == 1
 
       list(
         token = session$token,
-        study = list(images = images)
+        study = list(
+          dataRows = rowSplit(images),
+          form = paste(as.character(study$form), collapse = " "),
+          formred = paste(as.character(study$formred), collapse = " ")
+        )
       )
     }
   )

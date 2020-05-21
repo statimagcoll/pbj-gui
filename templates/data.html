@@ -1,12 +1,35 @@
-<script type="text/javascript">
-  var params = [];
-  params["images"] = [
-    {{#study}}
-      {{#images}}
-      "{{.}}",
-      {{/images}}
-    {{/study}}
-  ];
-</script>
+<form>
+  <div class="form-group">
+    <select id="data-row">
+      {{#study}}{{#dataRows}}
+        <option value="{{index}}" {{#selected}}selected{{/selected}}>
+          Data row: {{index}}
+        </option>
+      {{/dataRows}}{{/study}}
+    </select>
+  </div>
+</form>
 
-<div class="papaya" data-params="params"></div>
+<div class="papaya" data-params="papayaConfig"></div>
+
+<script type="text/javascript">
+  var dataRows = [
+    null, // empty row to offset indices by 1
+    {{#study}}{{#dataRows}}
+    [
+      {{#template}}"{{.}}",{{/template}}
+      "{{image}}",
+      {{#weight}}"{{.}}"{{/weight}}
+    ],
+    {{/dataRows}}{{/study}}
+  ];
+  var papayaConfig = [];
+  papayaConfig["kioskMode"] = true;
+  papayaConfig["images"] = dataRows[1];
+
+  $('#data-row').change(function(e) {
+    let newIndex = parseInt($(e.target).val());
+    papayaConfig["images"] = dataRows[newIndex];
+    papaya.Container.resetViewer(0, papayaConfig);
+  });
+</script>
