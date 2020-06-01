@@ -74,6 +74,14 @@ PBJStudy <- setRefClass(
       }
 
       return(result)
+    },
+
+    getNumericVarNames = function() {
+      Filter(function(i) length(intersect(class(data[[i]]), c("integer", "numeric"))) > 0, names(data))
+    },
+
+    plotHist = function(name) {
+      hist(data[[name]], main = name, xlab = "")
     }
   )
 )
@@ -96,7 +104,8 @@ App <- setRefClass(
       )
 
       routes <<- list(
-        list(method = "GET", path = "/", handler = .self$getIndex)
+        list(method = "GET", path = "/", handler = .self$getIndex),
+        list(method = "GET", path = "/hist", handler = .self$plotHist)
         #list(method = "POST", path = "/statMap", handler = .self$createStatMap)
       )
     },
@@ -115,15 +124,13 @@ App <- setRefClass(
 
       if (is.null(response)) {
         # path didn't match (or handler returned NULL), return 404
-        response <- list(
-           status = 404L, headers = list('Content-Type' = 'text/plain'),
-           body = "Not found"
-        )
+        response <- makeTextResponse('Not found', 404L)
       }
 
       return(response)
     },
 
+    # handler for GET /
     getIndex = function(req) {
       # create a new session
       token <- createSession()
@@ -142,39 +149,42 @@ App <- setRefClass(
                                              "model" = modelTemplate))
 
       # setup the response
-      response <- list(
-        status = 200L, headers = list("Content-Type" = "text/html"),
-        body = body
-      )
+      response <- makeHTMLResponse(body)
       return(response)
     },
 
-    #createStatMap = function(req) {
-      ## parse request data as JSON
-      #params <- try({
-        #fromJSON(rawToChar(req$rook.input$read()), simplifyVector = FALSE)
-      #}, silent = TRUE)
+    # handler for GET /hist
+    plotHist = function(req) {
+      result <- parseGet(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
 
-      #if (inherits(params, "try-error")) {
-        #response <- list(
-          #status = 400L, headers = list("Content-Type" = "application/json"),
-          #body = toJSON(list(error = "invalid JSON"))
-        #)
-        #return(response)
-      #}
+      errors <- list()
+      params <- result
+      session <- getSession(params$token)
+      if (!("var" %in% names(params))) {
+        # missing var name
+        errors$var <- 'is required'
+      } else if (!(params$var %in% session$study$getNumericVarNames())) {
+        # invalid var name
+        errors$var <- 'is invalid'
+      }
+      if (length(errors) > 0) {
+        return(makeErrorResponse(errors))
+      }
 
-      ## validate the request data
-      #errors <- list()
-      #session <- NULL
-      #if (!("token" %in% names(params))) {
-        #errors$token <- "is required"
-      #} else {
-        #session <- getSession(params$token)
-        #if (is.null(session)) {
-          #errors$token <- "is invalid"
-        #}
-      #}
-    #},
+      # plot histogram to PNG
+      filename <- tempfile(fileext = "png")
+      png(filename)
+      session$study$plotHist(params$var)
+      dev.off()
+
+      # setup the response
+      response <- makeImageResponse(filename)
+      return(response)
+    },
 
     createSession = function() {
       # generate a random token
@@ -220,9 +230,110 @@ App <- setRefClass(
         study = list(
           dataRows = rowSplit(images),
           form = paste(as.character(study$form), collapse = " "),
-          formred = paste(as.character(study$formred), collapse = " ")
+          formred = paste(as.character(study$formred), collapse = " "),
+          plots = lapply(study$getNumericVarNames(), function(var) {
+            paste0("/hist?token=", token, "&var=", var)
+          })
         )
       )
+    },
+
+    makeHTMLResponse = function(body, status = 200L) {
+      response <- list(
+        status = status, headers = list("Content-Type" = "text/html"),
+        body = body
+      )
+      return(response)
+    },
+
+    makeTextResponse = function(body, status = 200L) {
+      response <- list(
+        status = status, headers = list("Content-Type" = "text/plain"),
+        body = body
+      )
+      return(response)
+    },
+
+    makeErrorResponse = function(errors, status = 400L) {
+      response <- list(
+        status = status, headers = list("Content-Type" = "application/json"),
+        body = toJSON(errors)
+      )
+      class(response) <- c('error')
+      return(response)
+    },
+
+    makeImageResponse = function(filename, type = "png", status = 200L) {
+      response <- list(
+        status = status,
+        headers = list("Content-Type" = paste0("image/", type)),
+        body = c(file = filename)
+      )
+      return(response)
+    },
+
+    validateToken = function(params) {
+      # check for token in params list
+      errors <- list()
+      if (!("token" %in% names(params))) {
+        errors$token <- "is required"
+      } else {
+        session <- getSession(params$token)
+        if (is.null(session)) {
+          errors$token <- "is invalid"
+        }
+      }
+      if (length(errors) > 0) {
+        response <- makeErrorResponse(errors)
+        return(response)
+      }
+      return(errors)
+    },
+
+    parsePost = function(req) {
+      # parse request data as JSON
+      params <- try({
+        fromJSON(rawToChar(req$rook.input$read()), simplifyVector = FALSE)
+      }, silent = TRUE)
+
+      if (inherits(params, "try-error")) {
+        response <- makeErrorResponse(list(error = "invalid JSON"))
+        return(response)
+      }
+
+      # check for token, which is always required
+      result <- validateToken(params)
+      if (inherits(result, "error")) {
+        return(result)
+      }
+
+      return(params)
+    },
+
+    parseGet = function(req) {
+      # parse query in URI
+      query <- decodeURIComponent(req$QUERY_STRING)
+      if (substr(query, 1, 1) != "?") {
+        return(makeErrorResponse(list(error = "invalid query string")))
+      }
+      query <- substring(query, 2)
+
+      params <- list()
+      parts <- strsplit(query, "&", fixed = TRUE)[[1]]
+      parts <- strsplit(parts, "=", fixed = TRUE)
+      for (part in parts) {
+        name <- part[1]
+        value <- part[2]
+        params[[name]] <- value
+      }
+
+      # check for token, which is always required
+      result <- validateToken(params)
+      if (inherits(result, "error")) {
+        return(result)
+      }
+
+      return(params)
     }
   )
 )
@@ -232,6 +343,7 @@ server <- startServer("127.0.0.1", 37212, app)
 if (interactive()) {
   browseURL("http://localhost:37212")
 } else {
+  cat("Running on http://localhost:37212\n", file = stderr())
   while(TRUE) {
     service()
   }
