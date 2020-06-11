@@ -17,7 +17,8 @@ PBJStudy <- setRefClass(
                           robust = TRUE, sqrtSigma = TRUE, transform = TRUE,
                           zeros = FALSE, mc.cores = getOption("mc.cores", 2L),
                           cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 5000,
-                          kernel = "box", rboot = stats::rnorm, debug = FALSE) {
+                          kernel = "box", rboot = stats::rnorm, debug = FALSE,
+                          outdir = NULL) {
 
       images <<- images
       form <<- form
@@ -40,9 +41,12 @@ PBJStudy <- setRefClass(
       rboot <<- rboot
       debug <<- debug
 
-      # create temporary directory for output
-      outdir <<- tempfile()
-      dir.create(outdir)
+      if (is.null(outdir)) {
+        # create temporary directory for output
+        outdir <<- tempfile()
+        dir.create(outdir)
+      }
+      outdir <<- outdir
 
       # set computed fields to NULL
       statMap <<- NULL
@@ -89,24 +93,28 @@ PBJStudy <- setRefClass(
 # create App class for httpuv
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("root", "painRoot", "sessions", "staticPaths", "routes"),
+  fields = c("root", "painRoot", "statMapRoot", "sessions", "staticPaths",
+             "routes"),
   methods = list(
     initialize = function() {
       root <<- getwd()
       painRoot <<- file.path(find.package("pain21"), "pain21")
+      statMapRoot <<- tempfile()
+      dir.create(statMapRoot)
       sessions <<- list()
 
       # setup static paths for httpuv
       staticPaths <<- list(
         "/static" = staticPath(file.path(root, "static"), indexhtml = TRUE,
                                fallthrough = TRUE),
-        "/pain21" = staticPath(painRoot, fallthrough = TRUE)
+        "/pain21" = staticPath(painRoot, fallthrough = TRUE),
+        "/statMap" = staticPath(statMapRoot, fallthrough = TRUE)
       )
 
       routes <<- list(
         list(method = "GET", path = "/", handler = .self$getIndex),
         list(method = "GET", path = "/hist", handler = .self$plotHist),
-        list(method = "POST", path = "/statMap", handler = .self$createStatMap)
+        list(method = "POST", path = "/createStatMap", handler = .self$createStatMap)
       )
     },
 
@@ -227,8 +235,9 @@ App <- setRefClass(
         return(makeErrorResponse(list(error = as.character(result))))
       }
 
-      # TODO: return template
-      body <- paste0("<pre>", paste(capture.output(print(study$statMap)), collapse = "\n"), "</pre>")
+      statMapTemplate <- getTemplate("statMap.html")
+      vars <- getTemplateVars(params$token)
+      body <- whisker.render(statMapTemplate, data = vars)
       response <- makeHTMLResponse(body)
       return(response)
     },
@@ -239,9 +248,11 @@ App <- setRefClass(
 
       # create study object
       pain <- pain21()
+      outdir <- file.path(statMapRoot, token)
+      dir.create(outdir)
       study <- PBJStudy$new(pain$data$images, ~ 1, NULL, pain$mask, pain$data,
                             Winv = pain$data$varimages,
-                            template = pain$template)
+                            template = pain$template, outdir = outdir)
 
       # save session
       sessions[[token]] <<- list(token = token, study = study)
@@ -258,19 +269,31 @@ App <- setRefClass(
       return(template)
     },
 
+    getImageUrl = function(path) {
+      result <- sub(paste0("^", painRoot), "/pain21", path)
+      result <- sub(paste0("^", statMapRoot), "/statMap", result)
+      return(result)
+    },
+
     getTemplateVars = function(token) {
       session <- getSession(token)
       study <- session$study
 
+      # setup data images
       images <- study$getImages()
-
-      # convert study paths to URLs
       for (name in names(images)) {
-        images[[name]] <- sub(paste0("^", painRoot), "/pain21", images[[name]])
+        # convert study paths to URLs
+        images[[name]] <- getImageUrl(images[[name]])
       }
-
       images$index <- 1:nrow(images)
       images$selected <- 1:nrow(images) == 1
+
+      # setup statmap images
+      statMap <- list()
+      if (!is.null(study$statMap)) {
+        statMap$stat <- getImageUrl(study$statMap$stat)
+        statMap$template <- getImageUrl(study$statMap$template)
+      }
 
       list(
         token = session$token,
@@ -280,7 +303,8 @@ App <- setRefClass(
           formred = paste(as.character(study$formred), collapse = " "),
           plots = lapply(study$getNumericVarNames(), function(var) {
             paste0("/hist?token=", token, "&var=", var)
-          })
+          }),
+          statMap = statMap
         )
       )
     },

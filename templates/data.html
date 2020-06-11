@@ -10,7 +10,7 @@
   </div>
 </form>
 
-<div class="papaya" data-params="papayaConfig"></div>
+<div class="papaya" data-params="dataPapayaConfig"></div>
 
 <script type="text/javascript">
   var dataRows = [
@@ -23,13 +23,13 @@
     ],
     {{/dataRows}}{{/study}}
   ];
-  var papayaConfig = [];
-  papayaConfig["kioskMode"] = true;
-  papayaConfig["images"] = dataRows[1];
+  var dataPapayaConfig = [];
+  dataPapayaConfig["kioskMode"] = true;
+  dataPapayaConfig["images"] = dataRows[1];
 
   $('#data-row').change(function(e) {
     let newIndex = parseInt($(e.target).val());
-    papayaConfig["images"] = dataRows[newIndex];
-    papaya.Container.resetViewer(0, papayaConfig);
+    dataPapayaConfig["images"] = dataRows[newIndex];
+    papaya.Container.resetViewer(0, dataPapayaConfig);
   });
 </script>

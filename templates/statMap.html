@@ -1,0 +1,13 @@
+<div id="statmap-papaya"></div>
+
+<script type="text/javascript">
+  var statMapPapayaConfig = [];
+  statMapPapayaConfig["kioskMode"] = true;
+  statMapPapayaConfig["images"] = [
+    {{#study}}{{#statMap}}
+    "{{template}}",
+    "{{stat}}"
+    {{/statMap}}{{/study}}
+  ];
+  papaya.Container.addViewer('statmap-papaya', statMapPapayaConfig);
+</script>
