@@ -1,20 +1,26 @@
-#model-submit.active span.label {
+#model-submit.active span.label,
+#sei-submit.active span.label {
   display: inline;
 }
 
 #model-submit.active span.running,
-#model-submit.active span.spinner {
+#model-submit.active span.spinner,
+#sei-submit.active span.running,
+#sei-submit.active span.spinner {
   display: none;
 }
 
-#model-submit.running span.label {
+#model-submit.running span.label,
+#sei-submit.running span.label {
   display: none;
 }
 
-#model-submit.running span.running {
+#model-submit.running span.running,
+#sei-submit.running span.running {
   display: inline;
 }
 
-#model-submit.running span.spinner {
+#model-submit.running span.spinner,
+#sei-submit.running span.spinner {
   display: inline-block;
 }

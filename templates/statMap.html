@@ -1,5 +1,31 @@
 <div id="statmap-papaya"></div>
 
+{{#study}}
+<form id="sei-form" class="mt-4">
+  <div class="form-group">
+    <label>Cluster forming thresholds</label>
+    <div class="input-group">
+      <input id="sei-cft-lower" class="form-control" name="cftLower"
+             type="number" value="{{cftLower}}">
+      <input id="sei-cft-upper" class="form-control" name="cftUpper"
+             type="number" value="{{cftUpper}}">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="sei-nboot">Number of bootstrap samples to use</label>
+    <input id="sei-nboot" class="form-control" name="nboot" type="number"
+           step="1" min="1" value="{{nboot}}">
+  </div>
+
+  <button id="sei-submit" type="submit" class="btn btn-primary active">
+    <span class="label">Perform SEI</span>
+    <span class="spinner spinner-border spinner-border-sm" role="status"></span>
+    <span class="running">Running...</span>
+  </button>
+</form>
+{{/study}}
+
 <script type="text/javascript">
   var statMapPapayaConfig = [];
   statMapPapayaConfig["kioskMode"] = true;
@@ -10,4 +36,34 @@
     {{/statMap}}{{/study}}
   ];
   papaya.Container.addViewer('statmap-papaya', statMapPapayaConfig);
+
+  $('#sei-form').submit(function(event) {
+    event.preventDefault();
+
+    let form = $(this);
+    let data = {
+      'token': '{{token}}',
+      'cftLower': form.find('input[name="cftLower"]').val(),
+      'cftUpper': form.find('input[name="cftUpper"]').val(),
+      'nboot': form.find('input[name="nboot"]').val()
+    };
+
+    let button = $('#sei-submit').prop('disabled', true).
+      removeClass('active').addClass('running');
+
+    $.ajax({
+      type: 'POST',
+      url: '/performSEI',
+      data: JSON.stringify(data),
+      contentType: 'application/json',
+      success: function(content) {
+        $('ul.nav a.nav-link').removeClass('active')
+        $('#sei-link').removeClass('disabled').addClass('active');
+        $('div.tab-content div.tab-pane').removeClass('active');
+        $('#sei-content').html(content).addClass('active');
+        button.prop('disabled', false).
+          removeClass('running').addClass('active');
+      }
+    });
+  });
 </script>

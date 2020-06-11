@@ -16,7 +16,7 @@ PBJStudy <- setRefClass(
                           Winv = NULL, template = NULL, formImages = NULL,
                           robust = TRUE, sqrtSigma = TRUE, transform = TRUE,
                           zeros = FALSE, mc.cores = getOption("mc.cores", 2L),
-                          cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 5000,
+                          cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 200,
                           kernel = "box", rboot = stats::rnorm, debug = FALSE,
                           .outdir = NULL) {
 
@@ -115,7 +115,8 @@ App <- setRefClass(
       routes <<- list(
         list(method = "GET", path = "/", handler = .self$getIndex),
         list(method = "GET", path = "/hist", handler = .self$plotHist),
-        list(method = "POST", path = "/createStatMap", handler = .self$createStatMap)
+        list(method = "POST", path = "/createStatMap", handler = .self$createStatMap),
+        list(method = "POST", path = "/performSEI", handler = .self$performSEI)
       )
     },
 
@@ -126,7 +127,12 @@ App <- setRefClass(
 
       for (route in routes) {
         if (route$method == method && route$path == path) {
-          response <- route$handler(req)
+          result <- try(route$handler(req))
+          if (inherits(result, 'try-error')) {
+            print(result)
+            result <- makeErrorResponse(list(error = as.character(result)))
+          }
+          response <- result
           break
         }
       }
@@ -233,12 +239,85 @@ App <- setRefClass(
       study$formred <- formred
       result <- try(study$createStatMap())
       if (inherits(result, 'try-error')) {
+        print(result)
         return(makeErrorResponse(list(error = as.character(result))))
       }
 
       statMapTemplate <- getTemplate("statMap.html")
       vars <- getTemplateVars(params$token)
       body <- whisker.render(statMapTemplate, data = vars)
+      response <- makeHTMLResponse(body)
+      return(response)
+    },
+
+    # handler for POST /performSEI
+    performSEI = function(req) {
+      result <- parsePost(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
+
+      # validate params
+      errors <- list()
+      params <- result
+      session <- getSession(params$token)
+      if (!("cftLower" %in% names(params))) {
+        # missing CFT lower bound
+        errors$cftLower <- 'is required'
+      } else {
+        cftLower <- as.numeric(params$cftLower)
+        if (is.na(cftLower)) {
+          errors$cftLower <- 'is invalid'
+        } else if (cftLower < 0.00001) {
+          errors$cftLower <- 'is too small'
+        } else if (cftLower > 0.99999) {
+          errors$cftLower <- 'is too large'
+        }
+      }
+      if (!("cftUpper" %in% names(params))) {
+        # missing CFT upper bound
+        errors$cftUpper <- 'is required'
+      } else {
+        cftUpper <- as.numeric(params$cftUpper)
+        if (is.na(cftUpper)) {
+          errors$cftUpper <- 'is invalid'
+        } else if (cftUpper < 0.00001) {
+          errors$cftUpper <- 'is too small'
+        } else if (cftUpper > 0.99999) {
+          errors$cftUpper <- 'is too large'
+        }
+      }
+      if (is.null(errors$cftLower) && is.null(errors$cftUpper) && cftLower > cftUpper) {
+        errors$cftLower <- 'must be less than or equal to cftUpper'
+      }
+      if (!("nboot" %in% names(params))) {
+        errors$nboot <- 'is required'
+      } else {
+        nboot <- as.integer(params$nboot)
+        if (is.na(nboot)) {
+          errors$nboot <- 'is invalid'
+        } else if (nboot < 1) {
+          errors$nboot <- 'is too small'
+        }
+      }
+
+      if (length(errors) > 0) {
+        return(makeErrorResponse(errors))
+      }
+
+      study <- session$study
+      study$cfts.s <- c(cftLower, cftUpper)
+      study$nboot <- nboot
+      result <- try(study$performSEI())
+      if (inherits(result, 'try-error')) {
+        print(result)
+        return(makeErrorResponse(list(error = as.character(result))))
+      }
+
+      seiTemplate <- getTemplate("sei.html")
+      vars <- getTemplateVars(params$token)
+      body <- whisker.render(seiTemplate, data = vars)
       response <- makeHTMLResponse(body)
       return(response)
     },
@@ -296,6 +375,11 @@ App <- setRefClass(
         statMap$template <- getImageUrl(study$statMap$template)
       }
 
+      sPBJ <- NULL
+      if (!is.null(study$sPBJ)) {
+        sPBJ <- paste(capture.output(print(study$sPBJ)), collapse = "\n")
+      }
+
       list(
         token = session$token,
         study = list(
@@ -305,7 +389,11 @@ App <- setRefClass(
           plots = lapply(study$getNumericVarNames(), function(var) {
             paste0("/hist?token=", token, "&var=", var)
           }),
-          statMap = statMap
+          statMap = statMap,
+          cftLower = study$cfts.s[1],
+          cftUpper = study$cfts.s[2],
+          nboot = study$nboot,
+          sPBJ = sPBJ
         )
       )
     },
@@ -369,6 +457,7 @@ App <- setRefClass(
       }, silent = TRUE)
 
       if (inherits(params, "try-error")) {
+        print(params)
         response <- makeErrorResponse(list(error = "invalid JSON"))
         return(response)
       }
