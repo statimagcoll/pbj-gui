@@ -1,0 +1,20 @@
+#model-submit.active span.label {
+  display: inline;
+}
+
+#model-submit.active span.running,
+#model-submit.active span.spinner {
+  display: none;
+}
+
+#model-submit.running span.label {
+  display: none;
+}
+
+#model-submit.running span.running {
+  display: inline;
+}
+
+#model-submit.running span.spinner {
+  display: inline-block;
+}

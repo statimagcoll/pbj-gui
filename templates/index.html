@@ -11,6 +11,9 @@
     <!-- Papaya CSS -->
     <link rel="stylesheet" href="/static/papaya/papaya.css">
 
+    <!-- PBJ CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+
     <!-- jQuery -->
     <script src="/static/jquery.min.js"></script>
 
@@ -34,6 +37,9 @@
             <li class="nav-item">
               <a class="nav-link" role="tab" data-toggle="tab" href="#model-content">Model</a>
             </li>
+            <li class="nav-item">
+              <a id="statmap-link" class="nav-link disabled" role="tab" data-toggle="tab" href="#statmap-content">StatMap</a>
+            </li>
           </ul>
         </div>
       </nav>
@@ -45,12 +51,14 @@
         <div class="tab-pane" id="model-content" role="tabpanel">
           {{> model}}
         </div>
+        <div class="tab-pane" id="statmap-content" role="tabpanel">
+        </div>
       </div>
     </div>
 
     <!-- jQuery first (in <head>), then Popper.js, then Bootstrap JS -->
     <script src="/static/popper.min.js"></script>
-    <script src="/static/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/static/bootstrap/js/bootstrap.js"></script>
 
     <!-- Papaya source -->
     <script src="/static/papaya/papaya.js"></script>

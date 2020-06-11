@@ -105,8 +105,8 @@ App <- setRefClass(
 
       routes <<- list(
         list(method = "GET", path = "/", handler = .self$getIndex),
-        list(method = "GET", path = "/hist", handler = .self$plotHist)
-        #list(method = "POST", path = "/statMap", handler = .self$createStatMap)
+        list(method = "GET", path = "/hist", handler = .self$plotHist),
+        list(method = "POST", path = "/statMap", handler = .self$createStatMap)
       )
     },
 
@@ -183,6 +183,53 @@ App <- setRefClass(
 
       # setup the response
       response <- makeImageResponse(filename)
+      return(response)
+    },
+
+    # handler for POST /statMap
+    createStatMap = function(req) {
+      result <- parsePost(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
+
+      # validate params
+      errors <- list()
+      params <- result
+      session <- getSession(params$token)
+      if (!("formfull" %in% names(params))) {
+        # missing full formula
+        errors$formfull <- 'is required'
+      } else {
+        formfull <- try(as.formula(params$formfull))
+        if (inherits(formfull, 'try-error')) {
+          errors$formfull <- 'is invalid'
+        }
+      }
+      if ("formred" %in% names(params) && nzchar(params$formred)) {
+        formred <- try(as.formula(params$formred))
+        if (inherits(formred, 'try-error')) {
+          errors$formred <- 'is invalid'
+        }
+      } else {
+        formred <- NULL
+      }
+      if (length(errors) > 0) {
+        return(makeErrorResponse(errors))
+      }
+
+      study <- session$study
+      study$form <- formfull
+      study$formred <- formred
+      result <- try(study$createStatMap())
+      if (inherits(result, 'try-error')) {
+        return(makeErrorResponse(list(error = as.character(result))))
+      }
+
+      # TODO: return template
+      body <- paste0("<pre>", paste(capture.output(print(study$statMap)), collapse = "\n"), "</pre>")
+      response <- makeHTMLResponse(body)
       return(response)
     },
 
