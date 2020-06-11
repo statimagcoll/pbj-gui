@@ -18,7 +18,7 @@ PBJStudy <- setRefClass(
                           zeros = FALSE, mc.cores = getOption("mc.cores", 2L),
                           cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 5000,
                           kernel = "box", rboot = stats::rnorm, debug = FALSE,
-                          outdir = NULL) {
+                          .outdir = NULL) {
 
       images <<- images
       form <<- form
@@ -41,12 +41,13 @@ PBJStudy <- setRefClass(
       rboot <<- rboot
       debug <<- debug
 
-      if (is.null(outdir)) {
+      if (is.null(.outdir)) {
         # create temporary directory for output
         outdir <<- tempfile()
         dir.create(outdir)
+      } else {
+        outdir <<- .outdir
       }
-      outdir <<- outdir
 
       # set computed fields to NULL
       statMap <<- NULL
@@ -252,7 +253,7 @@ App <- setRefClass(
       dir.create(outdir)
       study <- PBJStudy$new(pain$data$images, ~ 1, NULL, pain$mask, pain$data,
                             Winv = pain$data$varimages,
-                            template = pain$template, outdir = outdir)
+                            template = pain$template, .outdir = outdir)
 
       # save session
       sessions[[token]] <<- list(token = token, study = study)
