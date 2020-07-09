@@ -1,0 +1,10 @@
+Package: pbjGUI
+Type: Package
+Title: Graphical user interface for the PBJ package
+Version: 1.0
+Date: 2020-06-23
+Author: Jeremy Stephens
+Maintainer: Jeremy Stephens <jeremy.f.stephens@vumc.org>
+Description: Visualize NIFTI images and run analyses with PBJ via web browser
+License: GPL-3
+Depends: pain21, pbj, httpuv, whisker, openssl, jsonlite

@@ -1,104 +1,10 @@
-library(pain21)
-library(pbj)
-library(httpuv)
-library(whisker)
-library(openssl)
-library(jsonlite)
-
-PBJStudy <- setRefClass(
-  Class = "PBJStudy",
-  fields = c("images", "form", "formred", "mask", "data", "W", "Winv",
-             "template", "formImages", "robust", "sqrtSigma", "transform",
-             "outdir", "zeros", "mc.cores", "statMap", "cfts.s", "cfts.p",
-             "nboot", "kernel", "rboot", "debug", "sPBJ"),
-  methods = list(
-    initialize = function(images, form, formred, mask, data = NULL, W = NULL,
-                          Winv = NULL, template = NULL, formImages = NULL,
-                          robust = TRUE, sqrtSigma = TRUE, transform = TRUE,
-                          zeros = FALSE, mc.cores = getOption("mc.cores", 2L),
-                          cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 200,
-                          kernel = "box", rboot = stats::rnorm, debug = FALSE,
-                          .outdir = NULL) {
-
-      images <<- images
-      form <<- form
-      formred <<- formred
-      mask <<- mask
-      data <<- data
-      W <<- W
-      Winv <<- Winv
-      template <<- template
-      formImages <<- formImages
-      robust <<- robust
-      sqrtSigma <<- sqrtSigma
-      transform <<- transform
-      zeros <<- zeros
-      mc.cores <<- mc.cores
-      cfts.s <<- cfts.s
-      cfts.p <<- cfts.p
-      nboot <<- nboot
-      kernel <<- kernel
-      rboot <<- rboot
-      debug <<- debug
-
-      if (is.null(.outdir)) {
-        # create temporary directory for output
-        outdir <<- tempfile()
-        dir.create(outdir)
-      } else {
-        outdir <<- .outdir
-      }
-
-      # set computed fields to NULL
-      statMap <<- NULL
-      sPBJ <<- NULL
-    },
-
-    createStatMap = function() {
-      statMap <<- lmPBJ(images, form, formred, mask, data, W, Winv, template,
-                        formImages, robust, sqrtSigma, transform, outdir,
-                        zeros, mc.cores)
-    },
-
-    performSEI = function() {
-      if (is.null(statMap)) {
-        stop("run createStatMap() first")
-      }
-      sPBJ <<- pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug)
-    },
-
-    getImages = function() {
-      result <- data.frame(image = images, template = template)
-
-      if (!is.null(W)) {
-        result$weight <- W
-      } else if (!is.null(Winv)) {
-        result$weight <- Winv
-      } else {
-        result$weight <- NA
-      }
-
-      return(result)
-    },
-
-    getNumericVarNames = function() {
-      Filter(function(i) length(intersect(class(data[[i]]), c("integer", "numeric"))) > 0, names(data))
-    },
-
-    plotHist = function(name) {
-      hist(data[[name]], main = name, xlab = "")
-    }
-  )
-)
-
-# create App class for httpuv
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("root", "painRoot", "statMapRoot", "sessions", "staticPaths",
+  fields = c("webRoot", "painRoot", "statMapRoot", "sessions", "staticPaths",
              "routes"),
   methods = list(
     initialize = function() {
-      root <<- getwd()
+      webRoot <<- file.path(find.package("pbjGUI"), "inst")
       painRoot <<- file.path(find.package("pain21"), "pain21")
       statMapRoot <<- tempfile()
       dir.create(statMapRoot)
@@ -106,10 +12,10 @@ App <- setRefClass(
 
       # setup static paths for httpuv
       staticPaths <<- list(
-        "/static" = staticPath(file.path(root, "static"), indexhtml = TRUE,
-                               fallthrough = TRUE),
-        "/pain21" = staticPath(painRoot, fallthrough = TRUE),
-        "/statMap" = staticPath(statMapRoot, fallthrough = TRUE)
+        "/static"  = httpuv::staticPath(file.path(webRoot, "static"),
+                                        indexhtml = TRUE, fallthrough = TRUE),
+        "/pain21"  = httpuv::staticPath(painRoot, fallthrough = TRUE),
+        "/statMap" = httpuv::staticPath(statMapRoot, fallthrough = TRUE)
       )
 
       routes <<- list(
@@ -150,18 +56,14 @@ App <- setRefClass(
       # create a new session
       token <- createSession()
 
-      # read the study data tab template to use as a partial template
-      dataTemplate <- getTemplate("data.html")
-
-      # read the study model tab template to use as a partial template
-      modelTemplate <- getTemplate("model.html")
+      # read the study tab template to use as a partial template
+      studyTemplate <- getTemplate("study.html")
 
       # render the main template
       mainTemplate <- getTemplate("index.html")
       vars <- getTemplateVars(token)
-      body <- whisker.render(mainTemplate, data = vars,
-                             partials = list("data" = dataTemplate,
-                                             "model" = modelTemplate))
+      body <- whisker::whisker.render(mainTemplate, data = vars,
+                                      partials = list("study" = studyTemplate))
 
       # setup the response
       response <- makeHTMLResponse(body)
@@ -245,7 +147,7 @@ App <- setRefClass(
 
       statMapTemplate <- getTemplate("statMap.html")
       vars <- getTemplateVars(params$token)
-      body <- whisker.render(statMapTemplate, data = vars)
+      body <- whisker::whisker.render(statMapTemplate, data = vars)
       response <- makeHTMLResponse(body)
       return(response)
     },
@@ -317,14 +219,14 @@ App <- setRefClass(
 
       seiTemplate <- getTemplate("sei.html")
       vars <- getTemplateVars(params$token)
-      body <- whisker.render(seiTemplate, data = vars)
+      body <- whisker::whisker.render(seiTemplate, data = vars)
       response <- makeHTMLResponse(body)
       return(response)
     },
 
     createSession = function() {
       # generate a random token
-      token <- paste(as.character(rand_bytes(12)), collapse = "")
+      token <- paste(as.character(openssl::rand_bytes(12)), collapse = "")
 
       # create study object
       pain <- pain21()
@@ -344,7 +246,7 @@ App <- setRefClass(
     },
 
     getTemplate = function(templateName) {
-      templateFile <- file.path(root, "templates", templateName)
+      templateFile <- file.path(webRoot, "templates", templateName)
       template <- readChar(templateFile, file.info(templateFile)$size)
       return(template)
     },
@@ -383,7 +285,7 @@ App <- setRefClass(
       list(
         token = session$token,
         study = list(
-          dataRows = rowSplit(images),
+          dataRows = whisker::rowSplit(images),
           form = paste(as.character(study$form), collapse = " "),
           formred = paste(as.character(study$formred), collapse = " "),
           plots = lapply(study$getNumericVarNames(), function(var) {
@@ -453,7 +355,7 @@ App <- setRefClass(
     parsePost = function(req) {
       # parse request data as JSON
       params <- try({
-        fromJSON(rawToChar(req$rook.input$read()), simplifyVector = FALSE)
+        jsonlite::fromJSON(rawToChar(req$rook.input$read()), simplifyVector = FALSE)
       }, silent = TRUE)
 
       if (inherits(params, "try-error")) {
@@ -498,15 +400,3 @@ App <- setRefClass(
     }
   )
 )
-
-app <- App$new()
-server <- startServer("127.0.0.1", 37212, app)
-if (interactive()) {
-  browseURL("http://localhost:37212")
-} else {
-  cat("Running on http://localhost:37212\n", file = stderr())
-  while(TRUE) {
-    service()
-  }
-  server$stop()
-}
