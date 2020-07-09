@@ -1,10 +1,14 @@
-runPBJ <- function(root) {
+runPBJ <- function(root, launch.browser = interactive()) {
   app <- App$new()
   server <- httpuv::startServer("127.0.0.1", 37212, app)
-  if (interactive()) {
-    browseURL("http://localhost:37212")
-  } else {
-    cat("Running on http://localhost:37212\n", file = stderr())
+  url <- paste0("http://localhost:37212/?token=", app$token)
+  cat("Running on ", url, "\n", sep = "", file = stderr())
+
+  if (launch.browser) {
+    browseURL(url)
+  }
+
+  if (!interactive()) {
     while(TRUE) {
       httpuv::service()
     }

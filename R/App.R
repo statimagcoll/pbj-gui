@@ -1,14 +1,13 @@
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("webRoot", "painRoot", "statMapRoot", "sessions", "staticPaths",
-             "routes"),
+  fields = c("webRoot", "painRoot", "statMapRoot", "staticPaths", "routes",
+             "token", "study"),
   methods = list(
     initialize = function() {
       webRoot <<- file.path(find.package("pbjGUI"), "inst")
       painRoot <<- file.path(find.package("pain21"), "pain21")
       statMapRoot <<- tempfile()
       dir.create(statMapRoot)
-      sessions <<- list()
 
       # setup static paths for httpuv
       staticPaths <<- list(
@@ -18,12 +17,17 @@ App <- setRefClass(
         "/statMap" = httpuv::staticPath(statMapRoot, fallthrough = TRUE)
       )
 
+      # setup routes
       routes <<- list(
         list(method = "GET", path = "/", handler = .self$getIndex),
         list(method = "GET", path = "/hist", handler = .self$plotHist),
         list(method = "POST", path = "/createStatMap", handler = .self$createStatMap),
         list(method = "POST", path = "/performSEI", handler = .self$performSEI)
       )
+
+      # generate a random token for this session
+      token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
+      study <<- NULL
     },
 
     call = function(req) {
@@ -31,9 +35,16 @@ App <- setRefClass(
       path <- req$PATH_INFO
       response <- NULL
 
+      # always check for token
+      query <- parseQuery(req)
+      if (is.null(query$token) || query$token != token) {
+        response <- makeTextResponse('Invalid token', 401L)
+        return(response)
+      }
+
       for (route in routes) {
         if (route$method == method && route$path == path) {
-          result <- try(route$handler(req))
+          result <- try(route$handler(req, query))
           if (inherits(result, 'try-error')) {
             print(result)
             result <- makeErrorResponse(list(error = as.character(result)))
@@ -52,16 +63,13 @@ App <- setRefClass(
     },
 
     # handler for GET /
-    getIndex = function(req) {
-      # create a new session
-      token <- createSession()
-
+    getIndex = function(req, query) {
       # read the study tab template to use as a partial template
       studyTemplate <- getTemplate("study.html")
 
       # render the main template
       mainTemplate <- getTemplate("index.html")
-      vars <- getTemplateVars(token)
+      vars <- getTemplateVars()
       body <- whisker::whisker.render(mainTemplate, data = vars,
                                       partials = list("study" = studyTemplate))
 
@@ -71,20 +79,13 @@ App <- setRefClass(
     },
 
     # handler for GET /hist
-    plotHist = function(req) {
-      result <- parseGet(req)
-      if (inherits(result, 'error')) {
-        # parsePost returned an error response
-        return(result)
-      }
-
+    plotHist = function(req, query) {
       errors <- list()
-      params <- result
-      session <- getSession(params$token)
+      params <- query
       if (!("var" %in% names(params))) {
         # missing var name
         errors$var <- 'is required'
-      } else if (!(params$var %in% session$study$getNumericVarNames())) {
+      } else if (!(params$var %in% study$getNumericVarNames())) {
         # invalid var name
         errors$var <- 'is invalid'
       }
@@ -95,7 +96,7 @@ App <- setRefClass(
       # plot histogram to PNG
       filename <- tempfile(fileext = "png")
       png(filename)
-      session$study$plotHist(params$var)
+      study$plotHist(params$var)
       dev.off()
 
       # setup the response
@@ -104,7 +105,7 @@ App <- setRefClass(
     },
 
     # handler for POST /statMap
-    createStatMap = function(req) {
+    createStatMap = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
         # parsePost returned an error response
@@ -114,7 +115,6 @@ App <- setRefClass(
       # validate params
       errors <- list()
       params <- result
-      session <- getSession(params$token)
       if (!("formfull" %in% names(params))) {
         # missing full formula
         errors$formfull <- 'is required'
@@ -136,9 +136,8 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      study <- session$study
-      study$form <- formfull
-      study$formred <- formred
+      study$form <<- formfull
+      study$formred <<- formred
       result <- try(study$createStatMap())
       if (inherits(result, 'try-error')) {
         print(result)
@@ -146,14 +145,14 @@ App <- setRefClass(
       }
 
       statMapTemplate <- getTemplate("statMap.html")
-      vars <- getTemplateVars(params$token)
+      vars <- getTemplateVars()
       body <- whisker::whisker.render(statMapTemplate, data = vars)
       response <- makeHTMLResponse(body)
       return(response)
     },
 
     # handler for POST /performSEI
-    performSEI = function(req) {
+    performSEI = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
         # parsePost returned an error response
@@ -163,7 +162,6 @@ App <- setRefClass(
       # validate params
       errors <- list()
       params <- result
-      session <- getSession(params$token)
       if (!("cftLower" %in% names(params))) {
         # missing CFT lower bound
         errors$cftLower <- 'is required'
@@ -208,9 +206,8 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      study <- session$study
-      study$cfts.s <- c(cftLower, cftUpper)
-      study$nboot <- nboot
+      study$cfts.s <<- c(cftLower, cftUpper)
+      study$nboot <<- nboot
       result <- try(study$performSEI())
       if (inherits(result, 'try-error')) {
         print(result)
@@ -218,32 +215,28 @@ App <- setRefClass(
       }
 
       seiTemplate <- getTemplate("sei.html")
-      vars <- getTemplateVars(params$token)
+      vars <- getTemplateVars()
       body <- whisker::whisker.render(seiTemplate, data = vars)
       response <- makeHTMLResponse(body)
       return(response)
     },
 
-    createSession = function() {
-      # generate a random token
-      token <- paste(as.character(openssl::rand_bytes(12)), collapse = "")
+    #createSession = function() {
+      ## generate a random token for this session
+      #token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
 
-      # create study object
-      pain <- pain21()
-      outdir <- file.path(statMapRoot, token)
-      dir.create(outdir)
-      study <- PBJStudy$new(pain$data$images, ~ 1, NULL, pain$mask, pain$data,
-                            Winv = pain$data$varimages,
-                            template = pain$template, .outdir = outdir)
+      ## create study object
+      #pain <- pain21()
+      #outdir <- file.path(statMapRoot, token)
+      #dir.create(outdir)
+      #study <- PBJStudy$new(pain$data$images, ~ 1, NULL, pain$mask, pain$data,
+                            #Winv = pain$data$varimages,
+                            #template = pain$template, .outdir = outdir)
 
-      # save session
-      sessions[[token]] <<- list(token = token, study = study)
-      return(token)
-    },
-
-    getSession = function(token) {
-      return(sessions[[token]])
-    },
+      ## save session
+      #sessions[[token]] <<- list(token = token, study = study)
+      #return(token)
+    #},
 
     getTemplate = function(templateName) {
       templateFile <- file.path(webRoot, "templates", templateName)
@@ -257,47 +250,49 @@ App <- setRefClass(
       return(result)
     },
 
-    getTemplateVars = function(token) {
-      session <- getSession(token)
-      study <- session$study
+    getTemplateVars = function() {
+      result <- list(token = token)
 
-      # setup data images
-      images <- study$getImages()
-      for (name in names(images)) {
-        # convert study paths to URLs
-        images[[name]] <- getImageUrl(images[[name]])
-      }
-      images$index <- 1:nrow(images)
-      images$selected <- 1:nrow(images) == 1
-
-      # setup statmap images
-      statMap <- list()
-      if (!is.null(study$statMap)) {
-        statMap$stat <- getImageUrl(study$statMap$stat)
-        statMap$template <- getImageUrl(study$statMap$template)
-      }
-
-      sPBJ <- NULL
-      if (!is.null(study$sPBJ)) {
-        sPBJ <- paste(capture.output(print(study$sPBJ)), collapse = "\n")
-      }
-
-      list(
-        token = session$token,
-        study = list(
-          dataRows = whisker::rowSplit(images),
+      if (!is.null(study)) {
+        result$study <- list(
           form = paste(as.character(study$form), collapse = " "),
           formred = paste(as.character(study$formred), collapse = " "),
           plots = lapply(study$getNumericVarNames(), function(var) {
             paste0("/hist?token=", token, "&var=", var)
           }),
-          statMap = statMap,
           cftLower = study$cfts.s[1],
           cftUpper = study$cfts.s[2],
-          nboot = study$nboot,
-          sPBJ = sPBJ
+          nboot = study$nboot
         )
-      )
+
+        # setup data images
+        images <- study$getImages()
+        for (name in names(images)) {
+          # convert study paths to URLs
+          images[[name]] <- getImageUrl(images[[name]])
+        }
+        images$index <- 1:nrow(images)
+        images$selected <- 1:nrow(images) == 1
+        result$study$dataRows <- whisker::rowSplit(images)
+
+        # setup statmap images
+        statMap <- NULL
+        if (!is.null(study$statMap)) {
+          statMap <- list(
+            stat = getImageUrl(study$statMap$stat),
+            template = getImageUrl(study$statMap$template)
+          )
+        }
+        result$study$statMap <- statMap
+
+        sPBJ <- NULL
+        if (!is.null(study$sPBJ)) {
+          sPBJ <- paste(capture.output(print(study$sPBJ)), collapse = "\n")
+        }
+        result$study$sPBJ <- sPBJ
+      }
+
+      return(result)
     },
 
     makeHTMLResponse = function(body, status = 200L) {
@@ -334,69 +329,41 @@ App <- setRefClass(
       return(response)
     },
 
-    validateToken = function(params) {
-      # check for token in params list
-      errors <- list()
-      if (!("token" %in% names(params))) {
-        errors$token <- "is required"
-      } else {
-        session <- getSession(params$token)
-        if (is.null(session)) {
-          errors$token <- "is invalid"
-        }
-      }
-      if (length(errors) > 0) {
-        response <- makeErrorResponse(errors)
-        return(response)
-      }
-      return(errors)
-    },
-
     parsePost = function(req) {
       # parse request data as JSON
-      params <- try({
+      result <- try({
         jsonlite::fromJSON(rawToChar(req$rook.input$read()), simplifyVector = FALSE)
       }, silent = TRUE)
 
-      if (inherits(params, "try-error")) {
-        print(params)
+      if (inherits(result, "try-error")) {
+        print(result)
         response <- makeErrorResponse(list(error = "invalid JSON"))
         return(response)
       }
 
-      # check for token, which is always required
-      result <- validateToken(params)
-      if (inherits(result, "error")) {
-        return(result)
-      }
-
-      return(params)
+      return(result)
     },
 
-    parseGet = function(req) {
+    parseQuery = function(req) {
+      result <- list()
+
       # parse query in URI
       query <- decodeURIComponent(req$QUERY_STRING)
       if (substr(query, 1, 1) != "?") {
-        return(makeErrorResponse(list(error = "invalid query string")))
+        # invalid/empty query string
+        return(result)
       }
       query <- substring(query, 2)
 
-      params <- list()
       parts <- strsplit(query, "&", fixed = TRUE)[[1]]
       parts <- strsplit(parts, "=", fixed = TRUE)
       for (part in parts) {
         name <- part[1]
         value <- part[2]
-        params[[name]] <- value
+        result[[name]] <- value
       }
 
-      # check for token, which is always required
-      result <- validateToken(params)
-      if (inherits(result, "error")) {
-        return(result)
-      }
-
-      return(params)
+      return(result)
     }
   )
 )
