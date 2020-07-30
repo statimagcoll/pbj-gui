@@ -1,30 +1,214 @@
-<!--
 <form id="study-form">
-  <div class="form-group">
-    <label for="study-images">Images (NIFTI)</label>
-    <input id="study-images" class="form-control-file" name="images" type="file" accept=".nii.gz" multiple required />
-  </div>
-
-  <div class="form-group">
-    <label for="study-mask">Mask (NIFTI)</label>
-    <input id="study-mask" class="form-control-file" name="mask" type="file" accept=".nii.gz" required />
-  </div>
-
-  <div class="form-group">
+  <div class="form-group border-bottom pb-2">
     <label for="study-dataset">Dataset (CSV)</label>
-    <input id="study-dataset" class="form-control-file" name="dataset" type="file" accept=".csv" required />
+    <input id="study-dataset" class="form-control" name="dataset" type="text"
+      readonly required placeholder="No file selected." />
+
+    <div id="study-dataset-columns" class="collapse mt-2" data-toggle="collapse">
+      <div class="d-table-row">
+        <div class="d-table-cell align-middle pr-2 pb-2">
+          <label class="mb-0" for="study-dataset-subject">Subject Column:</label>
+        </div>
+        <div class="d-table-cell align-middle pr-2 pb-2">
+          <input id="study-dataset-subject" class="form-control" name="subjectColumn"
+            type="text" readonly required placeholder="None" />
+        </div>
+      </div>
+      <div class="d-table-row">
+        <div class="d-table-cell align-middle pr-2">
+          <label class="mb-0" for="study-dataset-weights">Weights Column:</label>
+        </div>
+        <div class="d-table-cell align-middle pr-2">
+          <input id="study-dataset-weights" class="form-control"
+            name="weightsColumn" type="text" readonly placeholder="None" />
+        </div>
+        <div class="d-table-cell align-middle">
+          <div class="d-flex">
+            <input id="study-inv-weights" class="mr-2"
+              name="invertedWeights" type="checkbox" value="1" checked />
+            <label for="study-inv-weights" class="mb-0">Inverted values</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="browse btn btn-secondary mt-2" data-name="dataset"
+      data-type="csv" type="button">Select</button>
   </div>
 
-  <div class="form-group">
-    <label for="study-weights">Optional Weights (NIFTI)</label>
-    <input id="study-weights" class="form-control-file" name="weights" type="file" accept=".nii.gz" multiple />
+  <div class="form-group border-bottom pb-2">
+    <label>Mask (NIFTI)</label>
+    <input id="study-mask" class="form-control" name="mask" type="text"
+      readonly required placeholder="No file selected." />
+    <button class="browse btn btn-secondary mt-2" data-name="mask" data-type="nifti"
+      type="button">Select</button>
   </div>
 
-  <div class="form-group form-check">
-    <input id="study-weights" class="form-check-input" name="invertedWeights" type="checkbox" value="1" checked />
-    <label for="study-weights" class="form-check-label">Inverted Weights</label>
+  <div class="form-group border-bottom pb-2">
+    <label>Template (NIFTI)</label>
+    <input id="study-template" class="form-control" name="template" type="text"
+      readonly required placeholder="No file selected." />
+    <button class="browse btn btn-secondary mt-2" data-name="template"
+      data-type="nifti" type="button">Select</button>
   </div>
 
-  <button id="study-submit" type="submit" class="btn btn-primary">Submit</button> or <button id="study-example" type="button" class="btn btn-success">Use example</button>
+  <button id="study-submit" type="submit" class="btn btn-primary" disabled>Submit</button>
+  <!--
+  or <button id="study-example" type="button" class="btn btn-success">Use example</button>
+  -->
 </form>
--->
+
+<script type="text/javascript">
+  function checkDataset(path) {
+    let modal = $('#modal');
+    let selectButton = modal.find('#modal-select-button');
+    selectButton.prop('disabled', true).off('click');
+    $.ajax({
+      type: 'POST',
+      url: '/checkDataset?token={{token}}',
+      data: JSON.stringify({ path: path }),
+      contentType: 'application/json',
+      dataType: 'html',
+      success: function(html) {
+        modal.find('.modal-title').text('Assign dataset columns');
+        modal.find('.modal-footer .text').text('');
+
+        // Replace the content
+        modal.find('.modal-body').html(html);
+        modal.modal('show');
+
+        modal.find('select').change(function(event) {
+          let set =
+            modal.find('select').filter(function() {
+              return $(this).val() == 'subject';
+            });
+          selectButton.prop('disabled', set.length != 1);
+        });
+
+        selectButton.click(function(event) {
+          event.preventDefault();
+          setFile('dataset', modal.find('form').data('path'));
+          modal.find('select').each(function(index) {
+            let obj = $(this);
+            let name = obj.data('name');
+            let value = obj.val();
+            if (value == 'none') return;
+            $('#study-dataset-' + value).val(name);
+          });
+          $('#study-dataset-columns').collapse('show');
+          modal.modal('hide');
+        });
+      },
+      error: function(xhr) {
+        if (typeof(xhr.responseJSON) === 'undefined') {
+          console.log('unknown error:', xhr);
+        }
+        //$('#modal').find('form').append('<i class="fa fa-exclamation-triangle text-danger"></i>');
+      }
+    });
+  }
+
+  function setFile(name, path) {
+    $('#study-selected-' + name).text(path);
+    $('#study-' + name).val(path);
+
+    let invalid = false;
+    $('#study-form input:required').each(function() {
+      if ($(this).val() === "") {
+        invalid = true;
+        return(false);
+      }
+    });
+    $('#study-submit').prop('disabled', invalid);
+  }
+
+  function browse(name, type, path) {
+    let modal = $('#modal');
+    let selectButton = modal.find('#modal-select-button');
+    selectButton.off('click');
+
+    let payload = { type: type, path: path };
+    $.ajax({
+      type: 'POST',
+      url: '/browse?token={{token}}',
+      data: JSON.stringify(payload),
+      contentType: 'application/json',
+      dataType: 'json',
+      success: function(data) {
+        modal.find('.modal-title').text('Select ' + name);
+        modal.find('.modal-footer .text').text('File pattern: ' + data.glob);
+
+        // Replace the content
+        modal.find('.modal-body').html(data.html);
+
+        let table = modal.find('table.browse');
+        table.find('tbody tr.file td').click(function(event) {
+          let obj = $(event.target).parent();
+          obj.siblings('.selected').removeClass('selected');
+          obj.toggleClass('selected');
+          selectButton.prop('disabled', table.find('tr.selected').length == 0);
+        });
+        table.find('tbody tr.folder td').dblclick(function(event) {
+          let obj = $(event.target).parent();
+          obj.addClass('focused');
+          browse(name, type, obj.data('path'));
+        });
+        selectButton.prop('disabled', table.find('tr.selected').length == 0);
+
+        // Select file if user clicks on select button
+        selectButton.on('click', function(event) {
+          event.preventDefault();
+          let selectedPath = table.find('tr.selected').data('path');
+          if (name == 'dataset') {
+            checkDataset(selectedPath);
+          } else {
+            setFile(name, selectedPath);
+            modal.modal('hide');
+          }
+        });
+
+        // Select file if user double clicks on a file row
+        table.find('tbody tr.file td').dblclick(function(event) {
+          let obj = $(event.target).parent();
+          let selectedPath = obj.data('path');
+          if (name == 'dataset') {
+            checkDataset(selectedPath);
+          } else {
+            setFile(name, selectedPath);
+            modal.modal('hide');
+          }
+        });
+
+        modal.find('button[name="parent"]').click(function(event) {
+          event.preventDefault();
+          let path = $(this).data('path');
+          browse(name, type, path);
+        });
+
+        modal.find('form').submit(function(event) {
+          event.preventDefault();
+          let obj = $(event.target);
+          let newPath = obj.find('input[name="path"]').val();
+          browse(name, type, newPath);
+        });
+
+        modal.modal('show')
+      },
+      error: function(xhr) {
+        if (typeof(xhr.responseJSON) === 'undefined') {
+          console.log('unknown error:', xhr);
+        }
+        $('#modal').find('form').append('<i class="fa fa-exclamation-triangle text-danger"></i>');
+      }
+    });
+  }
+  $('#study-form button.browse').click(function(event) {
+    event.preventDefault();
+    let obj = $(event.target);
+    browse(obj.data('name'), obj.data('type'), '{{painRoot}}');
+  });
+
+  $('#study-form').submit(function(event) {
+    event.preventDefault();
+    // TODO
+  });
+</script>

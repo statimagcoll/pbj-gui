@@ -13,13 +13,14 @@ App <- setRefClass(
       staticPaths <<- list(
         "/static"  = httpuv::staticPath(file.path(webRoot, "static"),
                                         indexhtml = TRUE, fallthrough = TRUE),
-        "/pain21"  = httpuv::staticPath(painRoot, fallthrough = TRUE),
         "/statMap" = httpuv::staticPath(statMapRoot, fallthrough = TRUE)
       )
 
       # setup routes
       routes <<- list(
         list(method = "GET", path = "/", handler = .self$getIndex),
+        list(method = "POST", path = "/browse", handler = .self$browse),
+        list(method = "POST", path = "/checkDataset", handler = .self$checkDataset),
         list(method = "GET", path = "/hist", handler = .self$plotHist),
         list(method = "POST", path = "/createStatMap", handler = .self$createStatMap),
         list(method = "POST", path = "/performSEI", handler = .self$performSEI)
@@ -75,6 +76,122 @@ App <- setRefClass(
 
       # setup the response
       response <- makeHTMLResponse(body)
+      return(response)
+    },
+
+    # handler for POST /browse
+    browse = function(req, query) {
+      result <- parsePost(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
+
+      params <- result
+      if (is.null(params$path)) {
+        path <- getwd()
+      } else {
+        path <- params$path
+      }
+      path <- try(normalizePath(path, mustWork = TRUE))
+      if (inherits(path, 'try-error')) {
+        response <- makeErrorResponse(list(path = unbox("is invalid")))
+        return(response)
+      }
+
+      ext <- ""
+      glob <- ""
+      if (!is.null(params$type)) {
+        if (params$type == "nifti") {
+          ext <- ".nii.gz$"
+          glob <- "*.nii.gz"
+        } else if (params$type == "csv") {
+          ext <- ".csv$"
+          glob <- "*.csv"
+        }
+      }
+
+      files <- file.info(list.files(path, full.names = TRUE))
+      files$path <- row.names(files)
+      files$name <- basename(files$path)
+      files <- files[grepl(ext, files$name) | files$isdir,]
+      files$type <- ifelse(files$isdir, "folder", "file")
+      files <- files[order(!files$isdir, files$name),]
+
+      browseTemplate <- getTemplate("browse.html")
+      vars <- list(
+        path = path,
+        parent = normalizePath(file.path(path, '..')),
+        files = rowSplit(files),
+        empty = (nrow(files) == 0)
+      )
+      data <- list(
+        html = whisker::whisker.render(browseTemplate, data = vars),
+        glob = glob
+      )
+
+      # setup the response
+      response <- makeJSONResponse(data)
+      return(response)
+    },
+
+    # handler for POST /checkDataset
+    checkDataset = function(req, query) {
+      result <- parsePost(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
+
+      params <- result
+      errors <- list()
+      if (is.null(params$path)) {
+        errors$path <- "is required"
+      } else if (length(params$path) != 1) {
+        errors$path <- "must have only 1 value"
+      } else if (!nzchar(params$path)) {
+        errors$path <- "is required"
+      } else if (!file.exists(params$path)) {
+        errors$path <- "does not exist"
+      } else if (file.info(params$path)$isdir) {
+        errors$path <- "must be a regular file"
+      } else if (!grepl(".csv$", params$path, ignore.case = TRUE)) {
+        errors$path <- "must be a CSV file"
+      } else {
+        # no errors so far
+        path <- normalizePath(params$path, mustWork = TRUE)
+        dataset <- try(read.csv(path))
+        if (inherits(dataset, "try-error")) {
+          errors$path <- "is not a valid CSV file"
+        }
+
+        # try to guess what columns contain image path information
+        columns <- grep("nii\\.gz", dataset, ignore.case=TRUE)
+        if (length(columns) == 0) {
+          errors$path <- "does not contain file paths to NIFTI images"
+        } else {
+          columns <- names(dataset)[columns]
+        }
+      }
+
+      if (length(errors) > 0) {
+        return(makeErrorResponse(errors))
+      }
+
+      template <- getTemplate("checkDataset.html")
+      #subdataset <- lapply(1:nrow(dataset), function(i) {
+        #list(values = unname(as.list(dataset[i, columns])))
+      #})
+      vars <- list(
+        path = path,
+        columns = lapply(columns, function(name) {
+          list(name = name, values = dataset[[name]])
+        })
+      )
+      html <- whisker::whisker.render(template, data = vars)
+
+      # setup the response
+      response <- makeHTMLResponse(html)
       return(response)
     },
 
@@ -251,7 +368,10 @@ App <- setRefClass(
     },
 
     getTemplateVars = function() {
-      result <- list(token = token)
+      result <- list(
+        token = token,
+        painRoot = painRoot
+      )
 
       if (!is.null(study)) {
         result$study <- list(
@@ -325,6 +445,14 @@ App <- setRefClass(
         status = status,
         headers = list("Content-Type" = paste0("image/", type)),
         body = c(file = filename)
+      )
+      return(response)
+    },
+
+    makeJSONResponse = function(data, status = 200L) {
+      response <- list(
+        status = status, headers = list("Content-Type" = "application/json"),
+        body = toJSON(data)
       )
       return(response)
     },

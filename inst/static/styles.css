@@ -1,3 +1,42 @@
+div.browse-wrapper {
+  overflow: auto;
+  max-height: 65vh;
+}
+table.browse {
+  position: relative;
+  padding: 3px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table.browse thead th {
+  position: sticky;
+  background: white;
+  border-bottom: 2px solid black;
+  top: 0;
+}
+table.browse thead th, table.browse tbody td {
+  padding: 3px 5px;
+  white-space: nowrap;
+  user-select: none;
+}
+table.browse tbody tr {
+  cursor: pointer;
+}
+table.browse tbody tr.focused td {
+  border-top: 1px dotted black;
+  border-bottom: 1px dotted black;
+}
+table.browse tbody tr.focused td:first-child {
+  border-left: 1px dotted black;
+}
+table.browse tbody tr.focused td:last-child {
+  border-right: 1px dotted black;
+}
+table.browse tbody tr.selected td {
+  color: white;
+  background: navy;
+}
+
 #model-submit.active span.label,
 #sei-submit.active span.label {
   display: inline;
