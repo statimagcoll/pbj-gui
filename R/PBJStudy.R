@@ -60,22 +60,16 @@ PBJStudy <- setRefClass(
       sPBJ <<- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug)
     },
 
-    getImages = function() {
-      result <- data.frame(image = images, template = template)
-
-      if (!is.null(W)) {
-        result$weight <- W
-      } else if (!is.null(Winv)) {
-        result$weight <- Winv
-      } else {
-        result$weight <- NA
-      }
-
-      return(result)
-    },
-
     getNumericVarNames = function() {
       Filter(function(i) length(intersect(class(data[[i]]), c("integer", "numeric"))) > 0, names(data))
+    },
+
+    getWeights = function() {
+      if (!is.null(W)) {
+        return(W)
+      } else {
+        return(Winv)
+      }
     },
 
     plotHist = function(name) {

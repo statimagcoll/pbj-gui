@@ -10,26 +10,29 @@
   </div>
 </form>
 
-<div class="papaya" data-params="dataPapayaConfig"></div>
+<div id="visualize-papaya"></div>
 
 <script type="text/javascript">
-  var dataRows = [
+  let visualizeDataRows = [
     null, // empty row to offset indices by 1
     {{#study}}{{#dataRows}}
     [
-      {{#template}}"{{.}}",{{/template}}
-      "{{image}}",
-      {{#weight}}"{{.}}"{{/weight}}
+      {{#hasTemplate}}"/studyImage/template{{templateExt}}?token={{token}}",{{/hasTemplate}}
+      "/studyImage/subject/{{index}}{{subjectExt}}?token={{token}}",
+      {{#hasWeight}}"/studyImage/weight/{{index}}{{weightExt}}?token={{token}}"{{/hasWeight}}
     ],
     {{/dataRows}}{{/study}}
   ];
-  var dataPapayaConfig = [];
-  //dataPapayaConfig["kioskMode"] = true;
-  dataPapayaConfig["images"] = dataRows[1];
+  let visualizeParams = [];
+  //visualizeParams["kioskMode"] = true;
+  visualizeParams["images"] = visualizeDataRows[1];
+  $(function() {
+    papaya.Container.addViewer('visualize-papaya', visualizeParams);
+  });
 
   $('#data-row').change(function(e) {
     let newIndex = parseInt($(e.target).val());
-    dataPapayaConfig["images"] = dataRows[newIndex];
-    papaya.Container.resetViewer(0, dataPapayaConfig);
+    visualizeParams["images"] = visualizeDataRows[newIndex];
+    papaya.Container.resetViewer(0, visualizeParams);
   });
 </script>

@@ -37,6 +37,17 @@ table.browse tbody tr.selected td {
   background: navy;
 }
 
+#browse-error {
+  border-radius: 5px;
+  background-color: darkred;
+  color: white;
+  padding: 2px;
+}
+#browse-error pre {
+  color: white;
+  margin-bottom: 0;
+}
+
 #model-submit.active span.label,
 #sei-submit.active span.label {
   display: inline;

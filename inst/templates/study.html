@@ -99,10 +99,8 @@
         });
       },
       error: function(xhr) {
-        if (typeof(xhr.responseJSON) === 'undefined') {
-          console.log('unknown error:', xhr);
-        }
-        //$('#modal').find('form').append('<i class="fa fa-exclamation-triangle text-danger"></i>');
+        let content = '<pre>' + xhr.responseText + '</pre>';
+        modal.find('#browse-error').html(content).removeClass('d-none');
       }
     });
   }
@@ -201,6 +199,7 @@
       }
     });
   }
+
   $('#study-form button.browse').click(function(event) {
     event.preventDefault();
     let obj = $(event.target);
@@ -209,6 +208,29 @@
 
   $('#study-form').submit(function(event) {
     event.preventDefault();
-    // TODO
+    let payload = {};
+    $(this).find('input').each(function(index) {
+      let obj = $(this);
+      payload[obj.attr('name')] = obj.val();
+    });
+
+    $.ajax({
+      type: 'POST',
+      url: '/createStudy?token={{token}}',
+      data: JSON.stringify(payload),
+      contentType: 'application/json',
+      dataType: 'json',
+      success: function(data) {
+        $('#visualize-content').html(data.visualize);
+        $('#model-content').html(data.model);
+        $('#visualize-link').removeClass('disabled').tab('show');
+        $('#model-link').removeClass('disabled');
+      },
+      error: function(xhr) {
+        if (typeof(xhr.responseJSON) === 'undefined') {
+          console.log('unknown error:', xhr);
+        }
+      }
+    });
   });
 </script>

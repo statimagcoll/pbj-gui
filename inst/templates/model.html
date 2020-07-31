@@ -38,7 +38,7 @@
 
     $.ajax({
       type: 'POST',
-      url: '/createStatMap',
+      url: '/createStatMap?token={{token}}',
       data: JSON.stringify(data),
       contentType: 'application/json',
       success: function(content) {

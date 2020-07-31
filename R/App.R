@@ -1,9 +1,11 @@
 App <- setRefClass(
   Class = "PBJApp",
   fields = c("webRoot", "painRoot", "statMapRoot", "staticPaths", "routes",
-             "token", "study"),
+             "token", "csvExt", "niftiExt", "study"),
   methods = list(
     initialize = function() {
+      csvExt <<- "\\.csv$"
+      niftiExt <<- "\\.nii(\\.gz)?$"
       webRoot <<- file.path(find.package("pbjGUI"), "inst")
       painRoot <<- file.path(find.package("pain21"), "pain21")
       statMapRoot <<- tempfile()
@@ -12,18 +14,19 @@ App <- setRefClass(
       # setup static paths for httpuv
       staticPaths <<- list(
         "/static"  = httpuv::staticPath(file.path(webRoot, "static"),
-                                        indexhtml = TRUE, fallthrough = TRUE),
-        "/statMap" = httpuv::staticPath(statMapRoot, fallthrough = TRUE)
+                                        indexhtml = TRUE, fallthrough = TRUE)
       )
 
       # setup routes
       routes <<- list(
-        list(method = "GET", path = "/", handler = .self$getIndex),
-        list(method = "POST", path = "/browse", handler = .self$browse),
-        list(method = "POST", path = "/checkDataset", handler = .self$checkDataset),
-        list(method = "GET", path = "/hist", handler = .self$plotHist),
-        list(method = "POST", path = "/createStatMap", handler = .self$createStatMap),
-        list(method = "POST", path = "/performSEI", handler = .self$performSEI)
+        list(method = "GET", path = "^/$", handler = .self$getIndex),
+        list(method = "POST", path = "^/browse$", handler = .self$browse),
+        list(method = "POST", path = "^/checkDataset$", handler = .self$checkDataset),
+        list(method = "POST", path = "^/createStudy$", handler = .self$createStudy),
+        list(method = "GET", path = "^/studyImage/", handler = .self$studyImage),
+        list(method = "GET", path = "^/hist$", handler = .self$plotHist),
+        list(method = "POST", path = "^/createStatMap$", handler = .self$createStatMap),
+        list(method = "POST", path = "^/performSEI$", handler = .self$performSEI)
       )
 
       # generate a random token for this session
@@ -34,17 +37,20 @@ App <- setRefClass(
     call = function(req) {
       method <- req$REQUEST_METHOD
       path <- req$PATH_INFO
+      cat("Method: ", method, " path: ", path, "\n", sep="")
       response <- NULL
 
       # always check for token
       query <- parseQuery(req)
       if (is.null(query$token) || query$token != token) {
+        cat("Bad token\n")
         response <- makeTextResponse('Invalid token', 401L)
         return(response)
       }
 
       for (route in routes) {
-        if (route$method == method && route$path == path) {
+        if (route$method == method && grepl(route$path, path)) {
+          cat("Path matched route pattern: ", route$path, "\n", sep="")
           result <- try(route$handler(req, query))
           if (inherits(result, 'try-error')) {
             print(result)
@@ -57,6 +63,7 @@ App <- setRefClass(
 
       if (is.null(response)) {
         # path didn't match (or handler returned NULL), return 404
+        cat("Path didn't match or handler returned NULL\n")
         response <- makeTextResponse('Not found', 404L)
       }
 
@@ -93,9 +100,9 @@ App <- setRefClass(
       } else {
         path <- params$path
       }
-      path <- try(normalizePath(path, mustWork = TRUE))
-      if (inherits(path, 'try-error')) {
-        response <- makeErrorResponse(list(path = unbox("is invalid")))
+      errors <- validatePath(path, dir = TRUE)
+      if (!is.null(errors)) {
+        response <- makeErrorResponse(list(path = errors))
         return(response)
       }
 
@@ -103,10 +110,10 @@ App <- setRefClass(
       glob <- ""
       if (!is.null(params$type)) {
         if (params$type == "nifti") {
-          ext <- ".nii.gz$"
-          glob <- "*.nii.gz"
+          ext <- niftiExt
+          glob <- "*.nii, *.nii.gz"
         } else if (params$type == "csv") {
-          ext <- ".csv$"
+          ext <- csvExt
           glob <- "*.csv"
         }
       }
@@ -145,19 +152,8 @@ App <- setRefClass(
 
       params <- result
       errors <- list()
-      if (is.null(params$path)) {
-        errors$path <- "is required"
-      } else if (length(params$path) != 1) {
-        errors$path <- "must have only 1 value"
-      } else if (!nzchar(params$path)) {
-        errors$path <- "is required"
-      } else if (!file.exists(params$path)) {
-        errors$path <- "does not exist"
-      } else if (file.info(params$path)$isdir) {
-        errors$path <- "must be a regular file"
-      } else if (!grepl(".csv$", params$path, ignore.case = TRUE)) {
-        errors$path <- "must be a CSV file"
-      } else {
+      errors$path <- validatePath(params$path, dir = FALSE, pattern = csvExt)
+      if (is.null(errors$path)) {
         # no errors so far
         path <- normalizePath(params$path, mustWork = TRUE)
         dataset <- try(read.csv(path))
@@ -166,7 +162,8 @@ App <- setRefClass(
         }
 
         # try to guess what columns contain image path information
-        columns <- grep("nii\\.gz", dataset, ignore.case=TRUE)
+        columns <- which(apply(dataset, MARGIN = 2,
+                               FUN = function(col) any(grepl(niftiExt, col, ignore.case = TRUE))))
         if (length(columns) == 0) {
           errors$path <- "does not contain file paths to NIFTI images"
         } else {
@@ -195,6 +192,153 @@ App <- setRefClass(
       return(response)
     },
 
+    createStudy = function(req, query) {
+      result <- parsePost(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
+
+      params <- result
+      errors <- list()
+      errors$dataset <- validatePath(params$dataset, dir = FALSE, pattern = csvExt)
+      errors$mask <- validatePath(params$mask, dir = FALSE, pattern = niftiExt)
+      errors$template <- validatePath(params$template, dir = FALSE, pattern = niftiExt)
+
+      if (is.null(errors$dataset)) {
+        path <- normalizePath(params$dataset, mustWork = TRUE)
+        dataset <- try(read.csv(path))
+        if (inherits(dataset, 'try-error')) {
+          errors$dataset <- 'is not a valid CSV file'
+        } else {
+          # check subject column
+          if (is.null(params$subjectColumn)) {
+            errors$subjectColumn <- 'is required'
+          } else if (!(params$subjectColumn %in% names(dataset))) {
+            errors$subjectColumn <- 'is not present in dataset'
+          } else {
+            # check for valid filenames
+            info <- file.info(dataset[[params$subjectColumn]])
+            bad <- subset(info, is.na(size))
+            if (nrow(bad) > 0) {
+              errors$subjectColumn <- paste0("contains missing files: ",
+                                             paste(row.names(bad), collapse = ", "))
+            }
+          }
+
+          # check weights column (if it exists)
+          if (!is.null(params$weightsColumn)) {
+            if (!(params$weightsColumn %in% names(dataset))) {
+              errors$weightsColumn <- 'is not present in dataset'
+            } else {
+              # check for valid filenames
+              info <- file.info(dataset[[params$weightsColumn]])
+              bad <- subset(info, is.na(size))
+              if (nrow(bad) > 0) {
+                errors$weightsColumn <- paste0("contains missing files: ",
+                                               paste(row.names(bad), collapse = ", "))
+              }
+            }
+          }
+        }
+      }
+
+      if (length(errors) > 0) {
+        return(makeErrorResponse(errors))
+      }
+
+      # create study object
+      images <- normalizePath(dataset[[params$subjectColumn]], mustWork = TRUE)
+      if (!is.null(params$weightsColumn)) {
+        weights <- normalizePath(dataset[[params$weightsColumn]], mustWork = TRUE)
+      } else {
+        weights <- NULL
+      }
+      if (params$invertedWeights == "1") {
+        W <- NULL
+        Winv <- weights
+      } else {
+        W <- weights
+        Winv <- NULL
+      }
+      mask <- normalizePath(params$mask, mustWork = TRUE)
+      template <- normalizePath(params$template, mustWork = TRUE)
+      study <<- PBJStudy$new(images, ~ 1, NULL, mask, dataset, W, Winv,
+                             template, .outdir = statMapRoot)
+
+      vars <- getTemplateVars()
+      visualizeTemplate <- getTemplate("visualize.html")
+      visualizeHTML <- whisker::whisker.render(visualizeTemplate, data = vars)
+
+      modelTemplate <- getTemplate("model.html")
+      modelHTML <- whisker::whisker.render(modelTemplate, data = vars)
+
+      data <- list(visualize = visualizeHTML, model = modelHTML)
+      response <- makeJSONResponse(data)
+      return(response)
+    },
+
+    # handler for GET /studyImage
+    studyImage = function(req, query) {
+      # parse path
+      path <- req$PATH_INFO
+      parts <- strsplit(path, "/")[[1]][c(-1, -2)]
+
+      filename <- NULL
+      candidate <- NULL
+      ext <- NULL
+      if (parts[1] == "subject" || parts[1] == "weight") {
+        type <- parts[1]
+        md <- regexpr("^([0-9]+)(\\.nii(\\.gz)?)$", parts[2], ignore.case = TRUE, perl = TRUE)
+        if (md >= 0) {
+          # R's regex support is terrible
+          index <- as.integer(substr(parts[2], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1))
+          ext <- substr(parts[2], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
+
+          # find candidate file
+          candidate <- NULL
+          if (type == "subject") {
+            if (index >= 1 && index <= length(study$images)) {
+              candidate <- study$images[index]
+            }
+          } else if (type == "weight") {
+            weights <- study$getWeights()
+            if (!is.null(weights) && index >= 1 && index <= length(weights)) {
+              candidate <- weights[index]
+            }
+          }
+        }
+      } else {
+        md <- regexpr("^(template|mask|statMap)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
+        if (md >= 0) {
+          type <- substr(parts[1], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
+          ext <- substr(parts[1], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
+
+          if (type == "template") {
+            candidate <- study$template
+          } else if (type == "mask") {
+            candidate <- study$mask
+          } else if (type == "statMap" && !is.null(study$statMap)) {
+            candidate <- study$statMap$stat
+          }
+        }
+      }
+
+      # make sure file extension matches
+      if (!is.null(candidate) && !is.null(ext)) {
+        ext <- paste0(ext, '$')
+        if (grepl(ext, candidate, ignore.case = TRUE)) {
+          filename <- candidate
+        }
+      }
+
+      if (!is.null(filename)) {
+        return(makeFileResponse(filename))
+      } else {
+        return(makeTextResponse("Not found", 404L))
+      }
+    },
+
     # handler for GET /hist
     plotHist = function(req, query) {
       errors <- list()
@@ -221,7 +365,7 @@ App <- setRefClass(
       return(response)
     },
 
-    # handler for POST /statMap
+    # handler for POST /createStatMap
     createStatMap = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
@@ -338,33 +482,10 @@ App <- setRefClass(
       return(response)
     },
 
-    #createSession = function() {
-      ## generate a random token for this session
-      #token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
-
-      ## create study object
-      #pain <- pain21()
-      #outdir <- file.path(statMapRoot, token)
-      #dir.create(outdir)
-      #study <- PBJStudy$new(pain$data$images, ~ 1, NULL, pain$mask, pain$data,
-                            #Winv = pain$data$varimages,
-                            #template = pain$template, .outdir = outdir)
-
-      ## save session
-      #sessions[[token]] <<- list(token = token, study = study)
-      #return(token)
-    #},
-
     getTemplate = function(templateName) {
       templateFile <- file.path(webRoot, "templates", templateName)
       template <- readChar(templateFile, file.info(templateFile)$size)
       return(template)
-    },
-
-    getImageUrl = function(path) {
-      result <- sub(paste0("^", painRoot), "/pain21", path)
-      result <- sub(paste0("^", statMapRoot), "/statMap", result)
-      return(result)
     },
 
     getTemplateVars = function() {
@@ -385,22 +506,44 @@ App <- setRefClass(
           nboot = study$nboot
         )
 
-        # setup data images
-        images <- study$getImages()
-        for (name in names(images)) {
-          # convert study paths to URLs
-          images[[name]] <- getImageUrl(images[[name]])
+        # get file extension for template image
+        hasTemplate <- !is.null(study$template)
+        if (hasTemplate) {
+          md <- regexpr(niftiExt, study$template)
+          templateExt <- substr(study$template, md, md + attr(md, 'match.length') - 1)
+        } else {
+          templateExt <- NULL
         }
-        images$index <- 1:nrow(images)
-        images$selected <- 1:nrow(images) == 1
-        result$study$dataRows <- whisker::rowSplit(images)
 
-        # setup statmap images
+        # create list of data rows for visualization template
+        weights <- study$getWeights()
+        hasWeight <- !is.null(weights)
+        result$study$dataRows <- lapply(1:length(study$images), function(i) {
+          # get file extension for subject image
+          md <- regexpr(niftiExt, study$images[i])
+          subjectExt <- substr(study$images[1], md, md + attr(md, 'match.length') - 1)
+
+          # get file extension for weight image
+          if (hasWeight) {
+            md <- regexpr(niftiExt, weights[i])
+            weightExt <- substr(weights[i], md, md + attr(md, 'match.length') - 1)
+          } else {
+            weightExt <- NULL
+          }
+          list(index = i, selected = (i == 1), hasTemplate = hasTemplate,
+               templateExt = templateExt, subjectExt = subjectExt,
+               weightExt = weightExt, hasWeight = hasWeight)
+        })
+
         statMap <- NULL
         if (!is.null(study$statMap)) {
+          # get file extension for statMap image
+          md <- regexpr(niftiExt, study$statMap$stat)
+          statMapExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
+
           statMap <- list(
-            stat = getImageUrl(study$statMap$stat),
-            template = getImageUrl(study$statMap$template)
+            hasTemplate = hasTemplate, templateExt = templateExt,
+            statMapExt = statMapExt
           )
         }
         result$study$statMap <- statMap
@@ -441,9 +584,14 @@ App <- setRefClass(
     },
 
     makeImageResponse = function(filename, type = "png", status = 200L) {
+      contentType <- paste0("image/", type)
+      return(makeFileResponse(filename, contentType, status))
+    },
+
+    makeFileResponse = function(filename, contentType = "application/octet-stream", status = 200L) {
       response <- list(
         status = status,
-        headers = list("Content-Type" = paste0("image/", type)),
+        headers = list("Content-Type" = contentType),
         body = c(file = filename)
       )
       return(response)
@@ -492,6 +640,35 @@ App <- setRefClass(
       }
 
       return(result)
+    },
+
+    validatePath = function(path, dir = FALSE, pattern = NULL) {
+      errors <- NULL
+      if (is.null(path)) {
+        errors <- "is required"
+      } else if (!is.character(path)) {
+        errors <- "must be a character vector"
+      } else if (length(path) != 1) {
+        errors <- "must have only 1 value"
+      } else if (!nzchar(path)) {
+        errors <- "must not be empty"
+      } else if (!file.exists(path)) {
+        errors <- "does not exist"
+      } else if (file.info(path)$isdir != dir) {
+        if (dir) {
+          errors <- "must be a directory"
+        } else {
+          errors <- "must be a regular file"
+        }
+      } else if (!is.null(pattern) && !grepl(pattern, path, ignore.case = TRUE)) {
+        errors <- paste0("must match pattern: ", pattern)
+      } else {
+        result <- try(normalizePath(path, mustWork = TRUE))
+        if (inherits(result, 'try-error')) {
+          errors <- "is invalid"
+        }
+      }
+      return(errors)
     }
   )
 )

@@ -27,15 +27,15 @@
 {{/study}}
 
 <script type="text/javascript">
-  var statMapPapayaConfig = [];
-  //statMapPapayaConfig["kioskMode"] = true;
-  statMapPapayaConfig["images"] = [
+  let statMapParams = [];
+  //statMapParams["kioskMode"] = true;
+  statMapParams["images"] = [
     {{#study}}{{#statMap}}
-    "{{template}}",
-    "{{stat}}"
+    {{#hasTemplate}}"/studyImage/template{{templateExt}}?token={{token}}",{{/hasTemplate}}
+    "/studyImage/statMap{{statMapExt}}?token={{token}}",
     {{/statMap}}{{/study}}
   ];
-  papaya.Container.addViewer('statmap-papaya', statMapPapayaConfig);
+  papaya.Container.addViewer('statmap-papaya', statMapParams);
 
   $('#sei-form').submit(function(event) {
     event.preventDefault();
@@ -53,7 +53,7 @@
 
     $.ajax({
       type: 'POST',
-      url: '/performSEI',
+      url: '/performSEI?token={{token}}',
       data: JSON.stringify(data),
       contentType: 'application/json',
       success: function(content) {
