@@ -13,7 +13,7 @@
 <div id="visualize-papaya"></div>
 
 <script type="text/javascript">
-  let visualizeDataRows = [
+  var visualizeDataRows = [
     null, // empty row to offset indices by 1
     {{#study}}{{#dataRows}}
     [
@@ -23,7 +23,7 @@
     ],
     {{/dataRows}}{{/study}}
   ];
-  let visualizeParams = [];
+  var visualizeParams = [];
   //visualizeParams["kioskMode"] = true;
   visualizeParams["images"] = visualizeDataRows[1];
   $(function() {
