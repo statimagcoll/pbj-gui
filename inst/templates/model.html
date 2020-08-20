@@ -16,6 +16,8 @@
     <span class="spinner spinner-border spinner-border-sm" role="status"></span>
     <span class="running">Running...</span>
   </button>
+  <pre id="statmap-log" class="d-none mt-3 mb-3">
+  </pre>
 </form>
 {{#plots}}
 <img src="{{{.}}}" />
@@ -23,6 +25,34 @@
 {{/study}}
 
 <script type="text/javascript">
+  function checkStatMap() {
+    $.ajax({
+      type: 'GET',
+      url: '/statMap?token={{token}}',
+      contentType: 'application/json',
+      success: function(result) {
+        let log = $('#statmap-log')
+        log.text(result.log).removeClass('d-none');
+
+        if (result.status == 'running') {
+          setTimeout(checkStatMap, 3000);
+        } else if (result.status == 'finished') {
+          log.addClass('d-none');
+          $('ul.nav a.nav-link').removeClass('active')
+          $('#statmap-link').removeClass('disabled').addClass('active');
+          $('div.tab-content div.tab-pane').removeClass('active');
+          $('#statmap-content').html(result.html).addClass('active');
+          $('#model-submit').prop('disabled', false).
+            removeClass('running').addClass('active');
+        }
+      },
+      error: function(xhr) {
+        console.log('unknown error:', xhr);
+        $('#model-submit').prop('disabled', false).removeClass('running');
+      }
+    });
+  }
+
   $('#model-form').submit(function(event) {
     event.preventDefault();
 
@@ -33,7 +63,7 @@
       'formred':  form.find('input[name="formred"]').val()
     };
 
-    let button = $('#model-submit').prop('disabled', true).
+    $('#model-submit').prop('disabled', true).
       removeClass('active').addClass('running');
 
     $.ajax({
@@ -41,13 +71,11 @@
       url: '/createStatMap?token={{token}}',
       data: JSON.stringify(data),
       contentType: 'application/json',
-      success: function(content) {
-        $('ul.nav a.nav-link').removeClass('active')
-        $('#statmap-link').removeClass('disabled').addClass('active');
-        $('div.tab-content div.tab-pane').removeClass('active');
-        $('#statmap-content').html(content).addClass('active');
-        button.prop('disabled', false).
-          removeClass('running').addClass('active');
+      success: function(result) {
+        setTimeout(checkStatMap, 3000);
+      },
+      error: function(xhr) {
+        console.log('unknown error:', xhr);
       }
     });
   });

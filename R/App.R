@@ -1,7 +1,7 @@
 App <- setRefClass(
   Class = "PBJApp",
   fields = c("webRoot", "painRoot", "statMapRoot", "staticPaths", "routes",
-             "token", "csvExt", "niftiExt", "study"),
+             "token", "csvExt", "niftiExt", "study", "statMapJob"),
   methods = list(
     initialize = function() {
       csvExt <<- "\\.csv$"
@@ -26,12 +26,15 @@ App <- setRefClass(
         list(method = "GET", path = "^/studyImage/", handler = .self$studyImage),
         list(method = "GET", path = "^/hist$", handler = .self$plotHist),
         list(method = "POST", path = "^/createStatMap$", handler = .self$createStatMap),
+        list(method = "GET", path = "^/statMap$", handler = .self$getStatMap),
         list(method = "POST", path = "^/performSEI$", handler = .self$performSEI)
       )
 
       # generate a random token for this session
       token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
+
       study <<- NULL
+      statMapJob <<- NULL
     },
 
     call = function(req) {
@@ -399,16 +402,85 @@ App <- setRefClass(
 
       study$form <<- formfull
       study$formred <<- formred
-      result <- try(study$createStatMap())
-      if (inherits(result, 'try-error')) {
-        print(result)
-        return(makeErrorResponse(list(error = as.character(result))))
+
+      # run lmPBJ in a separate R process
+      f <- function(images, form, formred, mask, data, W, Winv, template,
+                      formImages, robust, sqrtSigma, transform, outdir, zeros, mc.cores) {
+        pbj::lmPBJ(images, form, formred, mask, data, W, Winv, template,
+                   formImages, robust, sqrtSigma, transform, outdir, zeros,
+                   mc.cores)
+      }
+      tf <- tempfile()
+      args <- list(
+        images = study$images,
+        form = study$form,
+        formred = study$formred,
+        mask = study$mask,
+        data = study$data,
+        W = study$W,
+        Winv = study$Winv,
+        template = study$template,
+        formImages = study$formImages,
+        robust = study$robust,
+        sqrtSigma = study$sqrtSigma,
+        transform = study$transform,
+        outdir = study$outdir,
+        zeros = study$zeros,
+        mc.cores = study$mc.cores
+      )
+      rx <- callr::r_bg(f, args = args, stderr = tf, user_profile = FALSE)
+      statMapJob <<- list(stderr = tf, rx = rx)
+      if (!rx$is_alive()) {
+        log <- readChar(tf, file.info(tf)$size)
+        unlink(tf)
+        return(makeErrorResponse(list(error = tf)))
       }
 
-      statMapTemplate <- getTemplate("statMap.html")
-      vars <- getTemplateVars()
-      body <- whisker::whisker.render(statMapTemplate, data = vars)
-      response <- makeHTMLResponse(body)
+      response <- makeJSONResponse(list(running = jsonlite::unbox(TRUE)))
+      return(response)
+    },
+
+    # handler for GET /statMap
+    getStatMap = function(req, query) {
+      data <- list()
+      status <- 200L
+
+      if (!is.null(statMapJob)) {
+        # job is running (or just finished)
+        logFile <- statMapJob$stderr
+        data$log <- jsonlite::unbox(readChar(logFile, file.info(logFile)$size))
+
+        if (statMapJob$rx$is_alive()) {
+          data$status <- jsonlite::unbox("running")
+        } else {
+          statMap <- try(statMapJob$rx$get_result())
+          if (inherits(statMap, "try-error")) {
+            data$status <- jsonlite::unbox("failed")
+            status <- 500L
+          } else {
+            study$statMap <<- statMap
+            data$status <- jsonlite::unbox("finished")
+          }
+          statMapJob <<- NULL
+        }
+      }
+
+      if (is.null(statMapJob) && !is.null(study$statMap)) {
+        # statMap exists, render template
+        statMapTemplate <- getTemplate("statMap.html")
+        vars <- getTemplateVars()
+        data$html <- whisker::whisker.render(statMapTemplate, data = vars)
+
+        if (is.null(data$status)) {
+          data$status <- jsonlite::unbox("finished")
+        }
+      }
+
+      if (length(data) == 0) {
+        response <- makeTextResponse('Not found', 404L)
+      } else {
+        response <- makeJSONResponse(data, status)
+      }
       return(response)
     },
 
