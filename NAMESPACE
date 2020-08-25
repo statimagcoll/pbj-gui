@@ -1,1 +1,2 @@
 export(runPBJ)
+importFrom(jsonlite, unbox)

@@ -3,7 +3,7 @@ PBJStudy <- setRefClass(
   fields = c("images", "form", "formred", "mask", "data", "W", "Winv",
              "template", "formImages", "robust", "sqrtSigma", "transform",
              "outdir", "zeros", "mc.cores", "statMap", "cfts.s", "cfts.p",
-             "nboot", "kernel", "rboot", "debug", "sPBJ"),
+             "nboot", "kernel", "rboot", "debug", "sPBJ", "statMapJob"),
   methods = list(
     initialize = function(images, form, formred, mask, data = NULL, W = NULL,
                           Winv = NULL, template = NULL, formImages = NULL,
@@ -44,13 +44,86 @@ PBJStudy <- setRefClass(
 
       # set computed fields to NULL
       statMap <<- NULL
+      statMapJob <<- NULL
       sPBJ <<- NULL
     },
 
-    createStatMap = function() {
-      statMap <<- pbj::lmPBJ(images, form, formred, mask, data, W, Winv,
-                             template, formImages, robust, sqrtSigma,
-                             transform, outdir, zeros, mc.cores)
+    hasStatMapJob = function() {
+      return(!is.null(statMapJob))
+    },
+
+    startStatMapJob = function() {
+      if (hasStatMapJob()) {
+        stop("statMapJob is already running!")
+      }
+      statMap <<- NULL
+      # TODO: clear pbjSEI result too
+
+      # run lmPBJ in a separate R process
+      f <- function(images, form, formred, mask, data, W, Winv, template,
+                    formImages, robust, sqrtSigma, transform, outdir, zeros,
+                    mc.cores) {
+        pbj::lmPBJ(images, form, formred, mask, data, W, Winv, template,
+                   formImages, robust, sqrtSigma, transform, outdir, zeros,
+                   mc.cores)
+      }
+      logFile <- tempfile() # for stderr
+      args <- list(
+        "images"     = .self$images,
+        "form"       = .self$form,
+        "formred"    = .self$formred,
+        "mask"       = .self$mask,
+        "data"       = .self$data,
+        "W"          = .self$W,
+        "Winv"       = .self$Winv,
+        "template"   = .self$template,
+        "formImages" = .self$formImages,
+        "robust"     = .self$robust,
+        "sqrtSigma"  = .self$sqrtSigma,
+        "transform"  = .self$transform,
+        "outdir"     = .self$outdir,
+        "zeros"      = .self$zeros,
+        "mc.cores"   = .self$mc.cores
+      )
+      rx <- callr::r_bg(f, args = args, stderr = logFile, user_profile = FALSE)
+      if (!rx$is_alive()) {
+        log <- readChar(logFile, file.info(logFile)$size)
+        unlink(logFile)
+        stop(log)
+      }
+      statMapJob <<- list(stderr = logFile, rx = rx)
+      return(TRUE)
+    },
+
+    isStatMapJobRunning = function() {
+      return(hasStatMapJob() && statMapJob$rx$is_alive())
+    },
+
+    getStatMapJobLog = function() {
+      if (!hasStatMapJob()) {
+        return(NULL)
+      }
+      fn <- statMapJob$stderr
+      return(readChar(fn, file.info(fn)$size))
+    },
+
+    finalizeStatMapJob = function() {
+      if (!hasStatMapJob()) {
+        stop("statMapJob doesn't exist!")
+      }
+
+      result <- try(statMapJob$rx$get_result())
+      if (!inherits(result, "try-error")) {
+        statMap <<- result
+      }
+      unlink(statMapJob$logFile)
+      statMapJob <<- NULL
+
+      return(result)
+    },
+
+    hasStatMap = function() {
+      return(!is.null(statMap))
     },
 
     performSEI = function() {

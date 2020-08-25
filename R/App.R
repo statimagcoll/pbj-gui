@@ -403,40 +403,12 @@ App <- setRefClass(
       study$form <<- formfull
       study$formred <<- formred
 
-      # run lmPBJ in a separate R process
-      f <- function(images, form, formred, mask, data, W, Winv, template,
-                      formImages, robust, sqrtSigma, transform, outdir, zeros, mc.cores) {
-        pbj::lmPBJ(images, form, formred, mask, data, W, Winv, template,
-                   formImages, robust, sqrtSigma, transform, outdir, zeros,
-                   mc.cores)
-      }
-      tf <- tempfile()
-      args <- list(
-        images = study$images,
-        form = study$form,
-        formred = study$formred,
-        mask = study$mask,
-        data = study$data,
-        W = study$W,
-        Winv = study$Winv,
-        template = study$template,
-        formImages = study$formImages,
-        robust = study$robust,
-        sqrtSigma = study$sqrtSigma,
-        transform = study$transform,
-        outdir = study$outdir,
-        zeros = study$zeros,
-        mc.cores = study$mc.cores
-      )
-      rx <- callr::r_bg(f, args = args, stderr = tf, user_profile = FALSE)
-      statMapJob <<- list(stderr = tf, rx = rx)
-      if (!rx$is_alive()) {
-        log <- readChar(tf, file.info(tf)$size)
-        unlink(tf)
-        return(makeErrorResponse(list(error = tf)))
+      result <- try(study$startStatMapJob())
+      if (inherits(result, 'try-error')) {
+        return(makeErrorResponse(list(error = unbox(as.character(result)))))
       }
 
-      response <- makeJSONResponse(list(running = jsonlite::unbox(TRUE)))
+      response <- makeJSONResponse(list(running = unbox(TRUE)))
       return(response)
     },
 
@@ -445,34 +417,33 @@ App <- setRefClass(
       data <- list()
       status <- 200L
 
-      if (!is.null(statMapJob)) {
-        # job is running (or just finished)
-        logFile <- statMapJob$stderr
-        data$log <- jsonlite::unbox(readChar(logFile, file.info(logFile)$size))
+      if (study$hasStatMapJob()) {
+        # job is running or just finished
+        data$log <- unbox(study$getStatMapJobLog())
 
-        if (statMapJob$rx$is_alive()) {
-          data$status <- jsonlite::unbox("running")
+        if (study$isStatMapJobRunning()) {
+          # job is still running
+          data$status <- unbox("running")
         } else {
-          statMap <- try(statMapJob$rx$get_result())
-          if (inherits(statMap, "try-error")) {
-            data$status <- jsonlite::unbox("failed")
+          # job finished successfully or failed
+          result <- study$finalizeStatMapJob()
+          if (inherits(result, "try-error")) {
+            data$status <- unbox("failed")
             status <- 500L
           } else {
-            study$statMap <<- statMap
-            data$status <- jsonlite::unbox("finished")
+            data$status <- unbox("finished")
           }
-          statMapJob <<- NULL
         }
       }
 
-      if (is.null(statMapJob) && !is.null(study$statMap)) {
+      if (study$hasStatMap()) {
         # statMap exists, render template
         statMapTemplate <- getTemplate("statMap.html")
         vars <- getTemplateVars()
         data$html <- whisker::whisker.render(statMapTemplate, data = vars)
 
         if (is.null(data$status)) {
-          data$status <- jsonlite::unbox("finished")
+          data$status <- unbox("finished")
         }
       }
 
