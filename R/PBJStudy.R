@@ -54,7 +54,7 @@ PBJStudy <- setRefClass(
 
     startStatMapJob = function() {
       if (hasStatMapJob()) {
-        stop("statMapJob is already running!")
+        stop("statMapJob already exists!")
       }
       statMap <<- NULL
       # TODO: clear pbjSEI result too
@@ -67,7 +67,6 @@ PBJStudy <- setRefClass(
                    formImages, robust, sqrtSigma, transform, outdir, zeros,
                    mc.cores)
       }
-      logFile <- tempfile() # for stderr
       args <- list(
         "images"     = .self$images,
         "form"       = .self$form,
@@ -85,41 +84,8 @@ PBJStudy <- setRefClass(
         "zeros"      = .self$zeros,
         "mc.cores"   = .self$mc.cores
       )
-      rx <- callr::r_bg(f, args = args, stderr = logFile, user_profile = FALSE)
-      if (!rx$is_alive()) {
-        log <- readChar(logFile, file.info(logFile)$size)
-        unlink(logFile)
-        stop(log)
-      }
-      statMapJob <<- list(stderr = logFile, rx = rx)
+      statMapJob <<- Job$new(f, args)
       return(TRUE)
-    },
-
-    isStatMapJobRunning = function() {
-      return(hasStatMapJob() && statMapJob$rx$is_alive())
-    },
-
-    getStatMapJobLog = function() {
-      if (!hasStatMapJob()) {
-        return(NULL)
-      }
-      fn <- statMapJob$stderr
-      return(readChar(fn, file.info(fn)$size))
-    },
-
-    finalizeStatMapJob = function() {
-      if (!hasStatMapJob()) {
-        stop("statMapJob doesn't exist!")
-      }
-
-      result <- try(statMapJob$rx$get_result())
-      if (!inherits(result, "try-error")) {
-        statMap <<- result
-      }
-      unlink(statMapJob$logFile)
-      statMapJob <<- NULL
-
-      return(result)
     },
 
     hasStatMap = function() {

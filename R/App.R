@@ -1,7 +1,7 @@
 App <- setRefClass(
   Class = "PBJApp",
   fields = c("webRoot", "painRoot", "statMapRoot", "staticPaths", "routes",
-             "token", "csvExt", "niftiExt", "study", "statMapJob"),
+             "token", "csvExt", "niftiExt", "study"),
   methods = list(
     initialize = function() {
       csvExt <<- "\\.csv$"
@@ -34,7 +34,6 @@ App <- setRefClass(
       token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
 
       study <<- NULL
-      statMapJob <<- NULL
     },
 
     call = function(req) {
@@ -419,18 +418,19 @@ App <- setRefClass(
 
       if (study$hasStatMapJob()) {
         # job is running or just finished
-        data$log <- unbox(study$getStatMapJobLog())
+        data$log <- unbox(study$statMapJob$readLog())
 
-        if (study$isStatMapJobRunning()) {
+        if (study$statMapJob$isRunning()) {
           # job is still running
           data$status <- unbox("running")
         } else {
           # job finished successfully or failed
-          result <- study$finalizeStatMapJob()
+          result <- study$statMapJob$finalize()
           if (inherits(result, "try-error")) {
             data$status <- unbox("failed")
             status <- 500L
           } else {
+            study$statMap <<- result
             data$status <- unbox("finished")
           }
         }
