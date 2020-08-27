@@ -3,7 +3,8 @@ PBJStudy <- setRefClass(
   fields = c("images", "form", "formred", "mask", "data", "W", "Winv",
              "template", "formImages", "robust", "sqrtSigma", "transform",
              "outdir", "zeros", "mc.cores", "statMap", "cfts.s", "cfts.p",
-             "nboot", "kernel", "rboot", "debug", "sPBJ", "statMapJob"),
+             "nboot", "kernel", "rboot", "debug", "sei", "statMapJob",
+             "seiJob"),
   methods = list(
     initialize = function(images, form, formred, mask, data = NULL, W = NULL,
                           Winv = NULL, template = NULL, formImages = NULL,
@@ -45,7 +46,8 @@ PBJStudy <- setRefClass(
       # set computed fields to NULL
       statMap <<- NULL
       statMapJob <<- NULL
-      sPBJ <<- NULL
+      sei <<- NULL
+      seiJob <<- NULL
     },
 
     hasStatMapJob = function() {
@@ -57,7 +59,7 @@ PBJStudy <- setRefClass(
         stop("statMapJob already exists!")
       }
       statMap <<- NULL
-      # TODO: clear pbjSEI result too
+      sei <<- NULL
 
       # run lmPBJ in a separate R process
       f <- function(images, form, formred, mask, data, W, Winv, template,
@@ -84,7 +86,7 @@ PBJStudy <- setRefClass(
         "zeros"      = .self$zeros,
         "mc.cores"   = .self$mc.cores
       )
-      statMapJob <<- Job$new(f, args)
+      statMapJob <<- Job$new(f, args, "stderr")
       return(TRUE)
     },
 
@@ -92,11 +94,37 @@ PBJStudy <- setRefClass(
       return(!is.null(statMap))
     },
 
-    performSEI = function() {
-      if (is.null(statMap)) {
+    hasSEIJob = function() {
+      return(!is.null(seiJob))
+    },
+
+    startSEIJob = function() {
+      if (!hasStatMap()) {
         stop("run createStatMap() first")
       }
-      sPBJ <<- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug)
+      if (hasSEIJob()) {
+        stop("seiJob already exists!")
+      }
+
+      # run pbjSEI in a separate R process
+      f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug) {
+        pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug)
+      }
+      args <- list(
+        "statMap" = statMap,
+        "cfts.s"  = cfts.s,
+        "cfts.p"  = cfts.p,
+        "nboot"   = nboot,
+        "kernel"  = kernel,
+        "rboot"   = rboot,
+        "debug"   = debug
+      )
+      seiJob <<- Job$new(f, args, "stdout")
+      return(TRUE)
+    },
+
+    hasSEI = function() {
+      return(!is.null(sei))
     },
 
     getNumericVarNames = function() {

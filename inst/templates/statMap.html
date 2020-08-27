@@ -23,10 +23,40 @@
     <span class="spinner spinner-border spinner-border-sm" role="status"></span>
     <span class="running">Running...</span>
   </button>
+  <pre id="sei-log" class="d-none mt-3 mb-3">
+  </pre>
 </form>
 {{/study}}
 
 <script type="text/javascript">
+  function checkSEI() {
+    $.ajax({
+      type: 'GET',
+      url: '/sei?token={{token}}',
+      contentType: 'application/json',
+      success: function(result) {
+        let log = $('#sei-log')
+        log.text(result.log).removeClass('d-none');
+
+        if (result.status == 'running') {
+          setTimeout(checkSEI, 3000);
+        } else if (result.status == 'finished') {
+          log.addClass('d-none');
+          $('ul.nav a.nav-link').removeClass('active')
+          $('#sei-link').removeClass('disabled').addClass('active');
+          $('div.tab-content div.tab-pane').removeClass('active');
+          $('#sei-content').html(result.html).addClass('active');
+          $('#sei-submit').prop('disabled', false).
+            removeClass('running').addClass('active');
+        }
+      },
+      error: function(xhr) {
+        console.log('unknown error:', xhr);
+        $('#sei-submit').prop('disabled', false).removeClass('running');
+      }
+    });
+  }
+
   var statMapParams = [];
   //statMapParams["kioskMode"] = true;
   statMapParams["images"] = [
@@ -48,21 +78,19 @@
       'nboot': form.find('input[name="nboot"]').val()
     };
 
-    let button = $('#sei-submit').prop('disabled', true).
+    $('#sei-submit').prop('disabled', true).
       removeClass('active').addClass('running');
 
     $.ajax({
       type: 'POST',
-      url: '/performSEI?token={{token}}',
+      url: '/createSEI?token={{token}}',
       data: JSON.stringify(data),
       contentType: 'application/json',
-      success: function(content) {
-        $('ul.nav a.nav-link').removeClass('active')
-        $('#sei-link').removeClass('disabled').addClass('active');
-        $('div.tab-content div.tab-pane').removeClass('active');
-        $('#sei-content').html(content).addClass('active');
-        button.prop('disabled', false).
-          removeClass('running').addClass('active');
+      success: function(result) {
+        setTimeout(checkSEI, 3000);
+      },
+      error: function(xhr) {
+        console.log('unknown error:', xhr);
       }
     });
   });

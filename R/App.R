@@ -27,7 +27,8 @@ App <- setRefClass(
         list(method = "GET", path = "^/hist$", handler = .self$plotHist),
         list(method = "POST", path = "^/createStatMap$", handler = .self$createStatMap),
         list(method = "GET", path = "^/statMap$", handler = .self$getStatMap),
-        list(method = "POST", path = "^/performSEI$", handler = .self$performSEI)
+        list(method = "POST", path = "^/createSEI$", handler = .self$createSEI),
+        list(method = "GET", path = "^/sei$", handler = .self$getSEI)
       )
 
       # generate a random token for this session
@@ -135,7 +136,7 @@ App <- setRefClass(
         empty = (nrow(files) == 0)
       )
       data <- list(
-        html = whisker::whisker.render(browseTemplate, data = vars),
+        html = unbox(whisker::whisker.render(browseTemplate, data = vars)),
         glob = glob
       )
 
@@ -275,7 +276,7 @@ App <- setRefClass(
       modelTemplate <- getTemplate("model.html")
       modelHTML <- whisker::whisker.render(modelTemplate, data = vars)
 
-      data <- list(visualize = visualizeHTML, model = modelHTML)
+      data <- list(visualize = unbox(visualizeHTML), model = unbox(modelHTML))
       response <- makeJSONResponse(data)
       return(response)
     },
@@ -440,7 +441,7 @@ App <- setRefClass(
         # statMap exists, render template
         statMapTemplate <- getTemplate("statMap.html")
         vars <- getTemplateVars()
-        data$html <- whisker::whisker.render(statMapTemplate, data = vars)
+        data$html <- unbox(whisker::whisker.render(statMapTemplate, data = vars))
 
         if (is.null(data$status)) {
           data$status <- unbox("finished")
@@ -455,8 +456,8 @@ App <- setRefClass(
       return(response)
     },
 
-    # handler for POST /performSEI
-    performSEI = function(req, query) {
+    # handler for POST /createSEI
+    createSEI = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
         # parsePost returned an error response
@@ -512,16 +513,57 @@ App <- setRefClass(
 
       study$cfts.s <<- c(cftLower, cftUpper)
       study$nboot <<- nboot
-      result <- try(study$performSEI())
+
+      result <- try(study$startSEIJob())
       if (inherits(result, 'try-error')) {
         print(result)
         return(makeErrorResponse(list(error = as.character(result))))
       }
 
-      seiTemplate <- getTemplate("sei.html")
-      vars <- getTemplateVars()
-      body <- whisker::whisker.render(seiTemplate, data = vars)
-      response <- makeHTMLResponse(body)
+      response <- makeJSONResponse(list(running = unbox(TRUE)))
+      return(response)
+    },
+
+    # handler for GET /sei
+    getSEI = function(req, query) {
+      data <- list()
+      status <- 200L
+
+      if (study$hasSEIJob()) {
+        # job is running or just finished
+        data$log <- unbox(study$seiJob$readLog())
+
+        if (study$seiJob$isRunning()) {
+          # job is still running
+          data$status <- unbox("running")
+        } else {
+          # job finished successfully or failed
+          result <- study$seiJob$finalize()
+          if (inherits(result, "try-error")) {
+            data$status <- unbox("failed")
+            status <- 500L
+          } else {
+            study$sei <<- result
+            data$status <- unbox("finished")
+          }
+        }
+      }
+
+      if (study$hasSEI()) {
+        seiTemplate <- getTemplate("sei.html")
+        vars <- getTemplateVars()
+        data$html <- unbox(whisker::whisker.render(seiTemplate, data = vars))
+
+        if (is.null(data$status)) {
+          data$status <- unbox("finished")
+        }
+      }
+
+      if (length(data) == 0) {
+        response <- makeTextResponse('Not found', 404L)
+      } else {
+        response <- makeJSONResponse(data, status)
+      }
       return(response)
     },
 
@@ -591,11 +633,11 @@ App <- setRefClass(
         }
         result$study$statMap <- statMap
 
-        sPBJ <- NULL
-        if (!is.null(study$sPBJ)) {
-          sPBJ <- paste(capture.output(print(study$sPBJ)), collapse = "\n")
+        sei <- NULL
+        if (!is.null(study$sei)) {
+          sei <- paste(capture.output(print(study$sei)), collapse = "\n")
         }
-        result$study$sPBJ <- sPBJ
+        result$study$sei <- sei
       }
 
       return(result)
