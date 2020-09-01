@@ -215,7 +215,7 @@ App <- setRefClass(
           errors$dataset <- 'is not a valid CSV file'
         } else {
           # check subject column
-          if (is.null(params$subjectColumn)) {
+          if (is.null(params$subjectColumn) || !nzchar(params$subjectColumn)) {
             errors$subjectColumn <- 'is required'
           } else if (!(params$subjectColumn %in% names(dataset))) {
             errors$subjectColumn <- 'is not present in dataset'
@@ -230,7 +230,7 @@ App <- setRefClass(
           }
 
           # check weights column (if it exists)
-          if (!is.null(params$weightsColumn)) {
+          if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
             if (!(params$weightsColumn %in% names(dataset))) {
               errors$weightsColumn <- 'is not present in dataset'
             } else {
@@ -252,7 +252,7 @@ App <- setRefClass(
 
       # create study object
       images <- normalizePath(dataset[[params$subjectColumn]], mustWork = TRUE)
-      if (!is.null(params$weightsColumn)) {
+      if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
         weights <- normalizePath(dataset[[params$weightsColumn]], mustWork = TRUE)
       } else {
         weights <- NULL
