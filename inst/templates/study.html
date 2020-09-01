@@ -58,6 +58,7 @@
 </form>
 
 <script type="text/javascript">
+  var browsePath = "{{painRoot}}";
   function checkDataset(path) {
     let modal = $('#modal');
     let selectButton = modal.find('#modal-select-button');
@@ -120,6 +121,9 @@
   }
 
   function browse(name, type, path) {
+    // save browse path for subsequent calls
+    browsePath = path;
+
     let modal = $('#modal');
     let selectButton = modal.find('#modal-select-button');
     selectButton.off('click');
@@ -203,7 +207,7 @@
   $('#study-form button.browse').click(function(event) {
     event.preventDefault();
     let obj = $(event.target);
-    browse(obj.data('name'), obj.data('type'), '{{painRoot}}');
+    browse(obj.data('name'), obj.data('type'), browsePath);
   });
 
   $('#study-form').submit(function(event) {
