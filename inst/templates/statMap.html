@@ -1,6 +1,15 @@
-<div id="statmap-papaya"></div>
+{{#study}}{{#hasStatMap}}
+<form id="statmap-visualize-form" autocomplete="off">
+  <div class="form-group">
+    <label for="statmap-image">StatMap Image:</label>
+    <select id="statmap-image" name="image">
+      <option data-name="stat" selected>stat</option>
+      <option data-name="coef">coef</option>
+    </select>
+  </div>
+</form>
 
-{{#study}}
+<p class="border-bottom font-weight-bold">SEI</p>
 <form id="sei-form" class="mt-4">
   <div class="form-group">
     <label>Cluster forming thresholds</label>
@@ -26,72 +35,16 @@
   <pre id="sei-log" class="d-none mt-3 mb-3">
   </pre>
 </form>
-{{/study}}
 
 <script type="text/javascript">
-  function checkSEI() {
-    $.ajax({
-      type: 'GET',
-      url: '/sei?token={{token}}',
-      contentType: 'application/json',
-      success: function(result) {
-        let log = $('#sei-log')
-        log.text(result.log).removeClass('d-none');
-
-        if (result.status == 'running') {
-          setTimeout(checkSEI, 3000);
-        } else if (result.status == 'finished') {
-          log.addClass('d-none');
-          $('ul.nav a.nav-link').removeClass('active')
-          $('#sei-link').removeClass('disabled').addClass('active');
-          $('div.tab-content div.tab-pane').removeClass('active');
-          $('#sei-content').html(result.html).addClass('active');
-          $('#sei-submit').prop('disabled', false).
-            removeClass('running').addClass('active');
-        }
-      },
-      error: function(xhr) {
-        console.log('unknown error:', xhr);
-        $('#sei-submit').prop('disabled', false).removeClass('running');
-      }
-    });
-  }
-
-  var statMapParams = [];
-  //statMapParams["kioskMode"] = true;
-  statMapParams["images"] = [
-    {{#study}}{{#statMap}}
-    {{#hasTemplate}}"/studyImage/template{{templateExt}}?token={{token}}",{{/hasTemplate}}
-    "/studyImage/statMap{{statMapExt}}?token={{token}}",
-    {{/statMap}}{{/study}}
-  ];
-  papaya.Container.addViewer('statmap-papaya', statMapParams);
-
-  $('#sei-form').submit(function(event) {
-    event.preventDefault();
-
-    let form = $(this);
-    let data = {
-      'token': '{{token}}',
-      'cftLower': form.find('input[name="cftLower"]').val(),
-      'cftUpper': form.find('input[name="cftUpper"]').val(),
-      'nboot': form.find('input[name="nboot"]').val()
+  {{#statMap}}
+    statMapInfo = {
+      {{#hasTemplate}}
+        template: '/studyImage/template{{templateExt}}?token={{token}}',
+      {{/hasTemplate}}
+      stat: '/studyImage/statMapStat{{statExt}}?token={{token}}',
+      coef: '/studyImage/statMapCoef{{coefExt}}?token={{token}}'
     };
-
-    $('#sei-submit').prop('disabled', true).
-      removeClass('active').addClass('running');
-
-    $.ajax({
-      type: 'POST',
-      url: '/createSEI?token={{token}}',
-      data: JSON.stringify(data),
-      contentType: 'application/json',
-      success: function(result) {
-        setTimeout(checkSEI, 3000);
-      },
-      error: function(xhr) {
-        console.log('unknown error:', xhr);
-      }
-    });
-  });
+  {{/statMap}}
 </script>
+{{/hasStatMap}}{{/study}}

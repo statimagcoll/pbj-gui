@@ -48,6 +48,29 @@ table.browse tbody tr.selected td {
   margin-bottom: 0;
 }
 
+#main a.nav-link {
+  cursor: pointer;
+}
+
+#model-visualize-form .table-wrapper {
+  max-height: 30vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+#model-visualize-form table .name {
+  max-width: 10rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+#model-visualize-form table thead th {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
 #model-submit.active span.label,
 #sei-submit.active span.label {
   display: inline;
@@ -73,4 +96,9 @@ table.browse tbody tr.selected td {
 #model-submit.running span.spinner,
 #sei-submit.running span.spinner {
   display: inline-block;
+}
+
+/* finagle this to limit the width of the container to 1.5 times the height */
+.papaya-container {
+  padding: 0 calc((70vw - ((100vh - 10rem) * 1.5)) / 2);
 }

@@ -11,56 +11,162 @@
     <!-- Papaya CSS -->
     <link rel="stylesheet" href="/static/papaya/papaya.css">
 
+    <!-- Papaya CSS debug start -->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/base.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/ui/toolbar.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/ui/menu.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/ui/dialog.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/utilities/nojs.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/utilities/unsupported.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/static/papaya-debug/src/css/viewer/viewer.css" />-->
+    <!-- Papaya CSS debug end -->
+
     <!-- Fontawesome CSS -->
     <link rel="stylesheet" href="/static/fontawesome/css/all.css">
 
     <!-- PBJ CSS -->
     <link rel="stylesheet" href="/static/styles.css">
 
-    <!-- jQuery -->
-    <script src="/static/jquery.min.js"></script>
-
     <title>PBJ</title>
   </head>
   <body>
-    <div class="container">
-      <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <!-- welcome panel -->
+    <div id="welcome" class="container" {{#study}}style="display: none;"{{/study}}>
+      <div class="row">
+        <div class="col mt-4">
+          <h3>
+            <img class="mr-2" src="/static/pbj-transparent.png"
+                 width="100" alt="PBJ logo">
+            Parametric Bootstrap Joint Testing Procedures for Neuroimaging
+          </h3>
+          <p style="font-size: larger">
+            Welcome to the PBJ graphical user interface (GUI)! PBJ is a suite
+            of tools to perform robust voxel-wise inference for medical imaging
+            data. In these analyses, the images are considered a multivariate
+            outcome variable and with one or multiple phenotypes as the
+            covariates. You can use this GUI to interactively run analyses,
+            visualize results, and produce reproducible batch scripts.
+          </p>
+          <p style="font-size: larger">
+            Please begin by selecting a dataset in <code>.csv</code> or
+            <code>.rds</code> format. Each row in the dataset should correspond
+            to one subject and contain at least one column "Image outcome"
+            pointing to the subject's NIFTI image that you would like to
+            analyze.
+          </p>
+
+          <form id="welcome-form" autocomplete="off">
+            <div class="form-group pb-2">
+              <label for="study-dataset">Dataset (CSV)</label>
+              <input id="study-dataset" class="form-control" name="dataset" type="text"
+                readonly required placeholder="No file selected." />
+
+              <div id="study-dataset-columns" class="collapse mt-2" data-toggle="collapse">
+                <div class="d-table-row">
+                  <div class="d-table-cell align-middle pr-2 pb-2">
+                    <label class="mb-0" for="study-dataset-outcome">Image Outcome Column:</label>
+                  </div>
+                  <div class="d-table-cell align-middle pr-2 pb-2">
+                    <input id="study-dataset-outcome" class="form-control" name="outcomeColumn"
+                      type="text" readonly required placeholder="None" />
+                  </div>
+                </div>
+                <div class="d-table-row">
+                  <div class="d-table-cell align-middle pr-2">
+                    <label class="mb-0" for="study-dataset-weights">Image Weights Column:</label>
+                  </div>
+                  <div class="d-table-cell align-middle pr-2">
+                    <input id="study-dataset-weights" class="form-control"
+                      name="weightsColumn" type="text" readonly placeholder="None" />
+                  </div>
+                  <div class="d-table-cell align-middle">
+                    <div class="d-flex">
+                      <input id="study-inv-weights" class="mr-2"
+                        name="invertedWeights" type="checkbox" value="1" checked />
+                      <label for="study-inv-weights" class="mb-0">Inverted values</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button class="browse btn btn-secondary mt-2" data-name="dataset"
+                data-type="csv" type="button">Select</button>
+            </div>
+
+            <div class="form-group pb-2">
+              <label>Mask (NIFTI)</label>
+              <input id="study-mask" class="form-control" name="mask" type="text"
+                readonly required placeholder="No file selected." />
+              <button class="browse btn btn-secondary mt-2" data-name="mask" data-type="nifti"
+                type="button">Select</button>
+            </div>
+
+            <div class="form-group pb-2">
+              <label>Template (NIFTI)</label>
+              <input id="study-template" class="form-control" name="template" type="text"
+                readonly required placeholder="No file selected." />
+              <button class="browse btn btn-secondary mt-2" data-name="template"
+                data-type="nifti" type="button">Select</button>
+            </div>
+
+            <button id="study-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+            <!--
+            or <button id="study-example" type="button" class="btn btn-success">Use example</button>
+            -->
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- main panel -->
+    <div id="main" class="container-fluid" {{^study}}style="display: none;"{{/study}}>
+      <nav class="navbar navbar-light bg-light mb-3">
         <a class="navbar-brand" href="#">
           <img src="/static/pbj-transparent.png" width="30" height="30" class="d-inline-block align-top" alt="">
-          PBJ
+          Parametric Bootstrap Joint Testing Procedures for Neuroimaging
         </a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbar">
-          <ul class="navbar-nav nav mr-auto mt-2 mt-lg-0" role="tablist">
-            <li class="nav-item">
-              <a class="nav-link active" role="tab" data-toggle="tab" href="#study-content">Study</a>
+      </nav>
+      <div class="row mt-4">
+        <div class="col-4">
+          <ul id="pbj-nav" class="nav nav-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <a class="nav-link active" id="study-tab" data-toggle="tab" data-target="study" role="tab">Study</a>
             </li>
-            <li class="nav-item">
-              <a id="visualize-link" class="nav-link disabled" role="tab" data-toggle="tab" href="#visualize-content">Visualize</a>
+            <li class="nav-item" role="presentation">
+              <a class="nav-link" id="model-tab" data-toggle="tab" data-target="model" role="tab">Model</a>
             </li>
-            <li class="nav-item">
-              <a id="model-link" class="nav-link disabled" role="tab" data-toggle="tab" href="#model-content">Model</a>
+            <li role="presentation" class="nav-item">
+              <a class="nav-link{{^hasStatMap}} disabled{{/hasStatMap}}" id="statmap-tab" data-toggle="tab" data-target="statmap" role="tab">StatMap</a>
             </li>
-            <li class="nav-item">
-              <a id="statmap-link" class="nav-link disabled" role="tab" data-toggle="tab" href="#statmap-content">StatMap</a>
-            </li>
-            <li class="nav-item">
-              <a id="sei-link" class="nav-link disabled" role="tab" data-toggle="tab" href="#sei-content">SEI</a>
+            <li role="presentation" class="nav-item">
+              <a class="nav-link{{^hasSEI}} disabled{{/hasSEI}}" id="sei-tab" data-toggle="tab" data-target="sei" role="tab">SEI</a>
             </li>
           </ul>
+          <div id="pbj-content" class="tab-content mt-2">
+            <div class="tab-pane active" id="study" role="tabpanel">
+              {{> studyTab }}
+            </div>
+            <div class="tab-pane" id="model" role="tabpanel">
+              {{> modelTab }}
+            </div>
+            <div class="tab-pane" id="statmap" role="tabpanel">
+              {{> statMapTab }}
+            </div>
+            <div class="tab-pane" id="sei" role="tabpanel">
+              {{> seiTab }}
+            </div>
+          </div>
         </div>
-      </nav>
-
-      <div class="tab-content m-2">
-        <div class="tab-pane active" id="study-content" role="tabpanel">
-          {{> study}}
+        <div id="visualize-study" class="col-8 visualize papaya-container">
+          <div id="visualize-study-papaya"></div>
         </div>
-        <div class="tab-pane" id="visualize-content" role="tabpanel"></div>
-        <div class="tab-pane" id="model-content" role="tabpanel"></div>
-        <div class="tab-pane" id="statmap-content" role="tabpanel"></div>
-        <div class="tab-pane" id="sei-content" role="tabpanel"></div>
+        <div id="visualize-model" class="col-8 visualize" style="display: none;">
+        </div>
+        <div id="visualize-statmap" class="col-8 visualize papaya-container" style="display: none;">
+          <div id="visualize-statmap-papaya"></div>
+        </div>
+        <div id="visualize-sei" class="col-8 visualize papaya-container" style="display: none;">
+          <div id="visualize-sei-papaya"></div>
+        </div>
       </div>
     </div>
 
@@ -84,11 +190,101 @@
       </div>
     </div>
 
-    <!-- jQuery first (in <head>), then Popper.js, then Bootstrap JS -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="/static/jquery.min.js"></script>
     <script src="/static/popper.min.js"></script>
     <script src="/static/bootstrap/js/bootstrap.js"></script>
 
+    <!-- PBJ JS -->
+    <script src="/static/pbj.js"></script>
+
     <!-- Papaya JS -->
     <script src="/static/papaya/papaya.js"></script>
+
+    <!-- Papaya JS debug start -->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/data/sample-image.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/data/talairach-atlas-image.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/data/talairach-atlas.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/base64-binary.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/bowser.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/daikon.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/nifti-reader.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/numerics.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/pako-inflate.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/gl-matrix.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/gifti-reader.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/lib/GLU.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/constants.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/utilities/array-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/utilities/math-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/utilities/object-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/utilities/platform-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/utilities/string-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/utilities/url-utils.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/core/coordinate.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/core/point.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/header.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/imagedata.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/imagedescription.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/imagedimensions.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/imagerange.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/imagetype.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/nifti/header-nifti.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/dicom/header-dicom.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/orientation.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/transform.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/volume.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/voxeldimensions.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/volume/voxelvalue.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/surface/surface.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/surface/surface-gifti.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/surface/surface-mango.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/surface/surface-vtk.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/dialog.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menu.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitem.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitemcheckbox.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitemradiobutton.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitemfilechooser.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitemrange.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitemslider.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/menuitemspacer.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/ui/toolbar.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/atlas.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/colortable.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/display.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/preferences.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/screenslice.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/screensurface.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/screenvol.js"></script>-->
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/viewer/viewer.js"></script>-->
+
+    <!--<script type="text/javascript" src="/static/papaya-debug/src/js/main.js"></script>-->
+    <!-- Papaya JS debug end -->
+
+    <script>
+      token = '{{token}}';
+      browsePath = '{{painRoot}}';
+      {{#study}}
+        $('#main').ready(initMain);
+        {{#hasStatMap}}
+          $('#statmap').ready(initStatMap);
+        {{/hasStatMap}}
+        {{#hasSEI}}
+          $('#sei').ready(initSEI);
+        {{/hasSEI}}
+      {{/study}}
+      {{^study}}
+        $(document).ready(initWelcome);
+      {{/study}}
+    </script>
   </body>
 </html>

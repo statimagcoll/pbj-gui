@@ -1,15 +1,16 @@
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("webRoot", "painRoot", "statMapRoot", "staticPaths", "routes",
-             "token", "csvExt", "niftiExt", "study"),
+  fields = c("webRoot", "painRoot", "studyRoot", "staticPaths", "routes",
+             "token", "csvExt", "niftiExt", "datasetPath", "study"),
   methods = list(
     initialize = function() {
       csvExt <<- "\\.csv$"
       niftiExt <<- "\\.nii(\\.gz)?$"
       webRoot <<- file.path(find.package("pbjGUI"), "inst")
       painRoot <<- file.path(find.package("pain21"), "pain21")
-      statMapRoot <<- tempfile()
-      dir.create(statMapRoot)
+      #studyRoot <<- tempfile()
+      studyRoot <<- file.path(find.package("pbjGUI"), "inst", "dev")
+      dir.create(studyRoot)
 
       # setup static paths for httpuv
       staticPaths <<- list(
@@ -34,6 +35,7 @@ App <- setRefClass(
       # generate a random token for this session
       token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
 
+      datasetPath <<- NULL
       study <<- NULL
     },
 
@@ -75,14 +77,18 @@ App <- setRefClass(
 
     # handler for GET /
     getIndex = function(req, query) {
-      # read the study tab template to use as a partial template
-      studyTemplate <- getTemplate("study.html")
-
       # render the main template
-      mainTemplate <- getTemplate("index.html")
       vars <- getTemplateVars()
+      studyTemplate <- getTemplate("study.html")
+      modelTemplate <- getTemplate("model.html")
+      statMapTemplate <- getTemplate("statMap.html")
+      seiTemplate <- getTemplate("sei.html")
+
+      mainTemplate <- getTemplate("index.html")
+      partials <- list(studyTab = studyTemplate, modelTab = modelTemplate,
+                       statMapTab = statMapTemplate, seiTab = seiTemplate)
       body <- whisker::whisker.render(mainTemplate, data = vars,
-                                      partials = list("study" = studyTemplate))
+                                      partials = partials)
 
       # setup the response
       response <- makeHTMLResponse(body)
@@ -179,9 +185,6 @@ App <- setRefClass(
       }
 
       template <- getTemplate("checkDataset.html")
-      #subdataset <- lapply(1:nrow(dataset), function(i) {
-        #list(values = unname(as.list(dataset[i, columns])))
-      #})
       vars <- list(
         path = path,
         columns = lapply(columns, function(name) {
@@ -214,17 +217,17 @@ App <- setRefClass(
         if (inherits(dataset, 'try-error')) {
           errors$dataset <- 'is not a valid CSV file'
         } else {
-          # check subject column
-          if (is.null(params$subjectColumn) || !nzchar(params$subjectColumn)) {
-            errors$subjectColumn <- 'is required'
-          } else if (!(params$subjectColumn %in% names(dataset))) {
-            errors$subjectColumn <- 'is not present in dataset'
+          # check outcome column
+          if (is.null(params$outcomeColumn) || !nzchar(params$outcomeColumn)) {
+            errors$outcomeColumn <- 'is required'
+          } else if (!(params$outcomeColumn %in% names(dataset))) {
+            errors$outcomeColumn <- 'is not present in dataset'
           } else {
             # check for valid filenames
-            info <- file.info(dataset[[params$subjectColumn]])
+            info <- file.info(dataset[[params$outcomeColumn]])
             bad <- subset(info, is.na(size))
             if (nrow(bad) > 0) {
-              errors$subjectColumn <- paste0("contains missing files: ",
+              errors$outcomeColumn <- paste0("contains missing files: ",
                                              paste(row.names(bad), collapse = ", "))
             }
           }
@@ -250,8 +253,10 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
+      datasetPath <<- path
+
       # create study object
-      images <- normalizePath(dataset[[params$subjectColumn]], mustWork = TRUE)
+      images <- normalizePath(dataset[[params$outcomeColumn]], mustWork = TRUE)
       if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
         weights <- normalizePath(dataset[[params$weightsColumn]], mustWork = TRUE)
       } else {
@@ -267,16 +272,16 @@ App <- setRefClass(
       mask <- normalizePath(params$mask, mustWork = TRUE)
       template <- normalizePath(params$template, mustWork = TRUE)
       study <<- PBJStudy$new(images, ~ 1, NULL, mask, dataset, W, Winv,
-                             template, .outdir = statMapRoot)
+                             template, .outdir = studyRoot)
 
       vars <- getTemplateVars()
-      visualizeTemplate <- getTemplate("visualize.html")
-      visualizeHTML <- whisker::whisker.render(visualizeTemplate, data = vars)
+      studyTemplate <- getTemplate("study.html")
+      studyHTML <- whisker::whisker.render(studyTemplate, data = vars)
 
       modelTemplate <- getTemplate("model.html")
       modelHTML <- whisker::whisker.render(modelTemplate, data = vars)
 
-      data <- list(visualize = unbox(visualizeHTML), model = unbox(modelHTML))
+      data <- list(study = unbox(studyHTML), model = unbox(modelHTML))
       response <- makeJSONResponse(data)
       return(response)
     },
@@ -290,7 +295,7 @@ App <- setRefClass(
       filename <- NULL
       candidate <- NULL
       ext <- NULL
-      if (parts[1] == "subject" || parts[1] == "weight") {
+      if (parts[1] == "outcome" || parts[1] == "weight") {
         type <- parts[1]
         md <- regexpr("^([0-9]+)(\\.nii(\\.gz)?)$", parts[2], ignore.case = TRUE, perl = TRUE)
         if (md >= 0) {
@@ -300,7 +305,7 @@ App <- setRefClass(
 
           # find candidate file
           candidate <- NULL
-          if (type == "subject") {
+          if (type == "outcome") {
             if (index >= 1 && index <= length(study$images)) {
               candidate <- study$images[index]
             }
@@ -312,7 +317,7 @@ App <- setRefClass(
           }
         }
       } else {
-        md <- regexpr("^(template|mask|statMap)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
+        md <- regexpr("^(template|mask|statMapStat|statMapCoef|seiCftLower|seiCftUpper)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
         if (md >= 0) {
           type <- substr(parts[1], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
           ext <- substr(parts[1], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
@@ -321,8 +326,14 @@ App <- setRefClass(
             candidate <- study$template
           } else if (type == "mask") {
             candidate <- study$mask
-          } else if (type == "statMap" && !is.null(study$statMap)) {
+          } else if (type == "statMapStat" && !is.null(study$statMap)) {
             candidate <- study$statMap$stat
+          } else if (type == "statMapCoef" && !is.null(study$statMap)) {
+            candidate <- study$statMap$coef
+          } else if (type == "seiCftLower" && !is.null(study$sei)) {
+            candidate <- study$sei[[5]]$clustermapfile
+          } else if (type == "seiCftUpper" && !is.null(study$sei)) {
+            candidate <- study$sei[[6]]$clustermapfile
           }
         }
       }
@@ -349,7 +360,7 @@ App <- setRefClass(
       if (!("var" %in% names(params))) {
         # missing var name
         errors$var <- 'is required'
-      } else if (!(params$var %in% study$getNumericVarNames())) {
+      } else if (!study$isVarNumeric(params$var)) {
         # invalid var name
         errors$var <- 'is invalid'
       }
@@ -419,19 +430,18 @@ App <- setRefClass(
 
       if (study$hasStatMapJob()) {
         # job is running or just finished
-        data$log <- unbox(study$statMapJob$readLog())
+        data$log <- unbox(study$readStatMapJobLog())
 
-        if (study$statMapJob$isRunning()) {
+        if (study$isStatMapJobRunning()) {
           # job is still running
           data$status <- unbox("running")
         } else {
           # job finished successfully or failed
-          result <- study$statMapJob$finalize()
+          result <- study$finalizeStatMapJob()
           if (inherits(result, "try-error")) {
             data$status <- unbox("failed")
             status <- 500L
           } else {
-            study$statMap <<- result
             data$status <- unbox("finished")
           }
         }
@@ -531,19 +541,18 @@ App <- setRefClass(
 
       if (study$hasSEIJob()) {
         # job is running or just finished
-        data$log <- unbox(study$seiJob$readLog())
+        data$log <- unbox(study$readSEIJobLog())
 
-        if (study$seiJob$isRunning()) {
+        if (study$isSEIJobRunning()) {
           # job is still running
           data$status <- unbox("running")
         } else {
           # job finished successfully or failed
-          result <- study$seiJob$finalize()
+          result <- study$finalizeSEIJob()
           if (inherits(result, "try-error")) {
             data$status <- unbox("failed")
             status <- 500L
           } else {
-            study$sei <<- result
             data$status <- unbox("finished")
           }
         }
@@ -576,19 +585,22 @@ App <- setRefClass(
     getTemplateVars = function() {
       result <- list(
         token = token,
-        painRoot = painRoot
+        painRoot = painRoot,
+        hasStatMap = (!is.null(study) && study$hasStatMap()),
+        hasSEI = (!is.null(study) && study$hasSEI())
       )
 
       if (!is.null(study)) {
         result$study <- list(
+          datasetPath = datasetPath,
           form = paste(as.character(study$form), collapse = " "),
           formred = paste(as.character(study$formred), collapse = " "),
-          plots = lapply(study$getNumericVarNames(), function(var) {
-            paste0("/hist?token=", token, "&var=", var)
-          }),
+          varInfo = study$getVarInfo(),
           cftLower = study$cfts.s[1],
           cftUpper = study$cfts.s[2],
-          nboot = study$nboot
+          nboot = study$nboot,
+          hasStatMap = study$hasStatMap(),
+          hasSEI = study$hasSEI()
         )
 
         # get file extension for template image
@@ -604,9 +616,9 @@ App <- setRefClass(
         weights <- study$getWeights()
         hasWeight <- !is.null(weights)
         result$study$dataRows <- lapply(1:length(study$images), function(i) {
-          # get file extension for subject image
+          # get file extension for outcome image
           md <- regexpr(niftiExt, study$images[i])
-          subjectExt <- substr(study$images[1], md, md + attr(md, 'match.length') - 1)
+          outcomeExt <- substr(study$images[i], md, md + attr(md, 'match.length') - 1)
 
           # get file extension for weight image
           if (hasWeight) {
@@ -616,26 +628,31 @@ App <- setRefClass(
             weightExt <- NULL
           }
           list(index = i, selected = (i == 1), hasTemplate = hasTemplate,
-               templateExt = templateExt, subjectExt = subjectExt,
-               weightExt = weightExt, hasWeight = hasWeight)
+               templateExt = templateExt,
+               outcomeBase = basename(study$images[i]),
+               outcomeExt = outcomeExt, weightExt = weightExt,
+               hasWeight = hasWeight)
         })
 
         statMap <- NULL
-        if (!is.null(study$statMap)) {
+        if (study$hasStatMap()) {
           # get file extension for statMap image
           md <- regexpr(niftiExt, study$statMap$stat)
-          statMapExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
+          statExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
+
+          md <- regexpr(niftiExt, study$statMap$coef)
+          coefExt <- substr(study$statMap$coef, md, md + attr(md, 'match.length') - 1)
 
           statMap <- list(
             hasTemplate = hasTemplate, templateExt = templateExt,
-            statMapExt = statMapExt
+            statExt = statExt, coefExt = coefExt
           )
         }
         result$study$statMap <- statMap
 
         sei <- NULL
-        if (!is.null(study$sei)) {
-          sei <- paste(capture.output(print(study$sei)), collapse = "\n")
+        if (study$hasSEI()) {
+          sei <- list(hasTemplate = hasTemplate, templateExt = templateExt)
         }
         result$study$sei <- sei
       }

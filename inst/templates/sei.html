@@ -1,5 +1,23 @@
-{{#study}}
-<pre>
-{{sei}}
-</pre>
-{{/study}}
+{{#study}}{{#hasSEI}}
+<form id="sei-visualize-form" autocomplete="off">
+  <div class="form-group">
+    <label for="sei-image">SEI Image:</label>
+    <select id="sei-image" name="image">
+      <option data-name="cftLower" selected>CFT Lower ({{cftLower}}) Clusters</option>
+      <option data-name="cftUpper">CFT Upper ({{cftUpper}}) Clusters</option>
+    </select>
+  </div>
+</form>
+
+<script type="text/javascript">
+  {{#sei}}
+    seiInfo = {
+      {{#hasTemplate}}
+        template: '/studyImage/template{{templateExt}}?token={{token}}',
+      {{/hasTemplate}}
+      cftLower: '/studyImage/seiCftLower.nii.gz?token={{token}}',
+      cftUpper: '/studyImage/seiCftUpper.nii.gz?token={{token}}'
+    };
+  {{/sei}}
+</script>
+{{/hasSEI}}{{/study}}
