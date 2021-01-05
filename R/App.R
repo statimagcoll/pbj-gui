@@ -3,13 +3,16 @@ App <- setRefClass(
   fields = c("webRoot", "painRoot", "studyRoot", "staticPaths", "routes",
              "token", "csvExt", "niftiExt", "datasetPath", "study"),
   methods = list(
-    initialize = function() {
+    initialize = function(.studyRoot = NULL) {
       csvExt <<- "\\.csv$"
       niftiExt <<- "\\.nii(\\.gz)?$"
       webRoot <<- file.path(find.package("pbjGUI"), "inst")
       painRoot <<- file.path(find.package("pain21"), "pain21")
-      #studyRoot <<- tempfile()
-      studyRoot <<- file.path(find.package("pbjGUI"), "inst", "dev")
+      if (is.null(.studyRoot)) {
+        studyRoot <<- tempfile()
+      } else {
+        studyRoot <<- .studyRoot
+      }
       dir.create(studyRoot)
 
       # setup static paths for httpuv
@@ -232,20 +235,20 @@ App <- setRefClass(
             }
           }
 
-          # check weights column (if it exists)
-          if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
-            if (!(params$weightsColumn %in% names(dataset))) {
-              errors$weightsColumn <- 'is not present in dataset'
-            } else {
-              # check for valid filenames
-              info <- file.info(dataset[[params$weightsColumn]])
-              bad <- subset(info, is.na(size))
-              if (nrow(bad) > 0) {
-                errors$weightsColumn <- paste0("contains missing files: ",
-                                               paste(row.names(bad), collapse = ", "))
-              }
-            }
-          }
+#          # check weights column (if it exists)
+#          if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
+#            if (!(params$weightsColumn %in% names(dataset))) {
+#              errors$weightsColumn <- 'is not present in dataset'
+#            } else {
+#              # check for valid filenames
+#              info <- file.info(dataset[[params$weightsColumn]])
+#              bad <- subset(info, is.na(size))
+#              if (nrow(bad) > 0) {
+#                errors$weightsColumn <- paste0("contains missing files: ",
+#                                               paste(row.names(bad), collapse = ", "))
+#              }
+#            }
+#          }
         }
       }
 
@@ -257,22 +260,27 @@ App <- setRefClass(
 
       # create study object
       images <- normalizePath(dataset[[params$outcomeColumn]], mustWork = TRUE)
-      if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
-        weights <- normalizePath(dataset[[params$weightsColumn]], mustWork = TRUE)
-      } else {
-        weights <- NULL
-      }
-      if (params$invertedWeights == "1") {
-        W <- NULL
-        Winv <- weights
-      } else {
-        W <- weights
-        Winv <- NULL
-      }
+#      if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
+#        weights <- normalizePath(dataset[[params$weightsColumn]], mustWork = TRUE)
+#      } else {
+#        weights <- NULL
+#      }
+#      if (params$invertedWeights == "1") {
+#        W <- NULL
+#        Winv <- weights
+#      } else {
+#        W <- weights
+#        Winv <- NULL
+#      }
       mask <- normalizePath(params$mask, mustWork = TRUE)
       template <- normalizePath(params$template, mustWork = TRUE)
-      study <<- PBJStudy$new(images, ~ 1, NULL, mask, dataset, W, Winv,
-                             template, .outdir = studyRoot)
+      study <<- PBJStudy$new(images = images,
+                             form = ~ 1,
+                             formred = NULL,
+                             mask = mask,
+                             data = dataset,
+                             template = template,
+                             .outdir = studyRoot)
 
       vars <- getTemplateVars()
       studyTemplate <- getTemplate("study.html")
@@ -295,7 +303,7 @@ App <- setRefClass(
       filename <- NULL
       candidate <- NULL
       ext <- NULL
-      if (parts[1] == "outcome" || parts[1] == "weight") {
+      if (parts[1] == "outcome") {
         type <- parts[1]
         md <- regexpr("^([0-9]+)(\\.nii(\\.gz)?)$", parts[2], ignore.case = TRUE, perl = TRUE)
         if (md >= 0) {
@@ -305,15 +313,8 @@ App <- setRefClass(
 
           # find candidate file
           candidate <- NULL
-          if (type == "outcome") {
-            if (index >= 1 && index <= length(study$images)) {
-              candidate <- study$images[index]
-            }
-          } else if (type == "weight") {
-            weights <- study$getWeights()
-            if (!is.null(weights) && index >= 1 && index <= length(weights)) {
-              candidate <- weights[index]
-            }
+          if (index >= 1 && index <= length(study$images)) {
+            candidate <- study$images[index]
           }
         }
       } else {
@@ -613,25 +614,15 @@ App <- setRefClass(
         }
 
         # create list of data rows for visualization template
-        weights <- study$getWeights()
-        hasWeight <- !is.null(weights)
         result$study$dataRows <- lapply(1:length(study$images), function(i) {
           # get file extension for outcome image
           md <- regexpr(niftiExt, study$images[i])
           outcomeExt <- substr(study$images[i], md, md + attr(md, 'match.length') - 1)
 
-          # get file extension for weight image
-          if (hasWeight) {
-            md <- regexpr(niftiExt, weights[i])
-            weightExt <- substr(weights[i], md, md + attr(md, 'match.length') - 1)
-          } else {
-            weightExt <- NULL
-          }
           list(index = i, selected = (i == 1), hasTemplate = hasTemplate,
                templateExt = templateExt,
                outcomeBase = basename(study$images[i]),
-               outcomeExt = outcomeExt, weightExt = weightExt,
-               hasWeight = hasWeight)
+               outcomeExt = outcomeExt)
         })
 
         statMap <- NULL

@@ -2,18 +2,16 @@
 
 <p>
   The following columns have been identified as containing file paths for NIFTI
-  images. Please associate one or more columns with an image type.
+  images. Please associate a column with an image type.
 </p>
 
 <form data-path="{{path}}">
   {{#columns}}
-  <div class="form-group">
-    <label for="column-{{name}}">Column: <strong>{{name}}</strong></label>
-    <select id="column-{{name}}" class="form-control" data-name="{{name}}">
-      <option value="none">Do not use</option>
-      <option value="outcome">Use as outcome images</option>
-      <option value="weights">Use as weight images</option>
-    </select>
+  <div class="form-check">
+    <input id="column-{{name}}" type="radio" class="form-check-input" name="outcome" value="{{name}}">
+    <label for="column-{{name}}" class="form-check-label">
+      Column: <strong>{{name}}</strong>
+    </label>
     <p class="mt-2 mb-2">
       <a data-toggle="collapse" href="#column-{{name}}-data">
         Show/hide data

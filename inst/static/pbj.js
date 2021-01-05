@@ -22,23 +22,19 @@ function checkDataset(path) {
       modal.find('.modal-body').html(html);
       modal.modal('show');
 
-      modal.find('select').change(function(event) {
-        let set =
-          modal.find('select').filter(function() {
-            return $(this).val() == 'outcome';
-          });
+      modal.find('form input').change(function(event) {
+        let set = modal.find('form input:checked');
         selectButton.prop('disabled', set.length != 1);
       });
 
       selectButton.click(function(event) {
         event.preventDefault();
         setFile('dataset', modal.find('form').data('path'));
-        modal.find('select').each(function(index) {
+        modal.find('input:checked').each(function(index) {
           let obj = $(this);
-          let name = obj.data('name');
+          let name = obj.attr('name');
           let value = obj.val();
-          if (value == 'none') return;
-          $('#study-dataset-' + value).val(name);
+          $('#study-dataset-' + name).val(value);
         });
         $('#study-dataset-columns').collapse('show');
         modal.modal('hide');
@@ -250,7 +246,6 @@ function getStudyPapayaParams() {
   let active = $('#study-data-row option:selected');
   let template = active.data('template');
   let outcome = active.data('outcome');
-  let weight = active.data('weight');
 
   let result = [];
   result["noNewFiles"] = true;
@@ -259,9 +254,6 @@ function getStudyPapayaParams() {
     result["images"].push(template);
   }
   result["images"].push(outcome);
-  if (weight) {
-    result["images"].push(weight);
-  }
   return(result);
 }
 

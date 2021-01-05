@@ -1,18 +1,20 @@
 PBJStudy <- setRefClass(
   Class = "PBJStudy",
   fields = c("images", "form", "formred", "mask", "data", "W", "Winv",
-             "template", "formImages", "robust", "sqrtSigma", "transform",
-             "outdir", "zeros", "mc.cores", "statMap", "cfts.s", "cfts.p",
-             "nboot", "kernel", "rboot", "debug", "sei", "statMapJob",
-             "seiJob"),
+             "template", "formImages", "robust", "transform", "outdir",
+             "zeros", "HC3", "mc.cores", "statMap", "cfts.s", "cfts.p",
+             "nboot", "kernel", "rboot", "method", "sei", "statMapJob",
+             "seiJob", "cache"),
   methods = list(
-    initialize = function(images, form, formred, mask, data = NULL, W = NULL,
-                          Winv = NULL, template = NULL, formImages = NULL,
-                          robust = TRUE, sqrtSigma = TRUE, transform = TRUE,
-                          zeros = FALSE, mc.cores = getOption("mc.cores", 2L),
-                          cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 200,
-                          kernel = "box", rboot = stats::rnorm, debug = FALSE,
-                          .outdir = NULL) {
+    initialize =
+      function(images, form, formred, mask, data = NULL, W = NULL, Winv = NULL,
+               template = NULL, formImages = NULL, robust = TRUE,
+               transform = c('none', 't', 'edgeworth'), zeros = FALSE,
+               HC3 = TRUE, mc.cores = getOption("mc.cores", 2L),
+               cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 200,
+               kernel = "box", rboot = stats::rnorm,
+               method = c('robust', 't', 'regular'), .outdir = NULL,
+               cache = FALSE) {
 
       images <<- images
       form <<- form
@@ -24,16 +26,17 @@ PBJStudy <- setRefClass(
       template <<- template
       formImages <<- formImages
       robust <<- robust
-      sqrtSigma <<- sqrtSigma
-      transform <<- transform
+      transform <<- match.arg(transform)
       zeros <<- zeros
+      HC3 <<- HC3
       mc.cores <<- mc.cores
       cfts.s <<- cfts.s
       cfts.p <<- cfts.p
       nboot <<- nboot
       kernel <<- kernel
       rboot <<- rboot
-      debug <<- debug
+      method <<- match.arg(method)
+      cache <<- cache
 
       if (is.null(.outdir)) {
         # create temporary directory for output
@@ -63,35 +66,39 @@ PBJStudy <- setRefClass(
 
       # run lmPBJ in a separate R process
       f <- function(images, form, formred, mask, data, W, Winv, template,
-                    formImages, robust, sqrtSigma, transform, outdir, zeros,
-                    mc.cores) {
+                    formImages, robust, transform, outdir, zeros, HC3,
+                    mc.cores, cache) {
+
         cacheFile <- file.path(outdir, "statMap.rds")
-        if (file.exists(cacheFile)) {
+        if (cache && file.exists(cacheFile)) {
           result <- readRDS(cacheFile)
         } else {
-          result <- pbj::lmPBJ(images, form, formred, mask, data, W, Winv, template,
-                               formImages, robust, sqrtSigma, transform, outdir, zeros,
-                               mc.cores)
-          saveRDS(result, cacheFile)
+          result <- pbj::lmPBJ(images, form, formred, mask, data, W, Winv,
+                               template, formImages, robust, transform, outdir,
+                               zeros, HC3, mc.cores)
+          if (cache) {
+            saveRDS(result, cacheFile)
+          }
         }
         return(result)
       }
       args <- list(
-        "images"     = .self$images,
-        "form"       = .self$form,
-        "formred"    = .self$formred,
-        "mask"       = .self$mask,
-        "data"       = .self$data,
-        "W"          = .self$W,
-        "Winv"       = .self$Winv,
-        "template"   = .self$template,
-        "formImages" = .self$formImages,
-        "robust"     = .self$robust,
-        "sqrtSigma"  = .self$sqrtSigma,
-        "transform"  = .self$transform,
-        "outdir"     = .self$outdir,
-        "zeros"      = .self$zeros,
-        "mc.cores"   = .self$mc.cores
+        "images"     = images,
+        "form"       = form,
+        "formred"    = formred,
+        "mask"       = mask,
+        "data"       = data,
+        "W"          = W,
+        "Winv"       = Winv,
+        "template"   = template,
+        "formImages" = formImages,
+        "robust"     = robust,
+        "transform"  = transform,
+        "outdir"     = outdir,
+        "zeros"      = zeros,
+        "HC3"        = HC3,
+        "mc.cores"   = mc.cores,
+        "cache"      = cache
       )
       statMapJob <<- Job$new(f, args, "stderr")
       return(TRUE)
@@ -142,13 +149,15 @@ PBJStudy <- setRefClass(
       }
 
       # run pbjSEI in a separate R process
-      f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug, outdir) {
+      f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method, outdir, cache) {
         cacheFile <- file.path(outdir, "sei.rds")
-        if (file.exists(cacheFile)) {
+        if (cache && file.exists(cacheFile)) {
           result <- readRDS(cacheFile)
         } else {
-          result <- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, debug)
-          saveRDS(result, cacheFile)
+          result <- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method)
+          if (cache) {
+            saveRDS(result, cacheFile)
+          }
         }
         return(result)
       }
@@ -159,8 +168,9 @@ PBJStudy <- setRefClass(
         "nboot"   = nboot,
         "kernel"  = kernel,
         "rboot"   = rboot,
-        "debug"   = debug,
-        "outdir"  = outdir
+        "method"  = method,
+        "outdir"  = outdir,
+        "cache"   = cache
       )
       seiJob <<- Job$new(f, args, "stdout")
       return(TRUE)
