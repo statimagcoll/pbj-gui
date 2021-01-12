@@ -542,19 +542,19 @@ App <- setRefClass(
 
       if (study$hasSEIJob()) {
         # job is running or just finished
-        data$log <- unbox(study$readSEIJobLog())
+        data$progress <- study$getSEIJobProgress()
 
         if (study$isSEIJobRunning()) {
           # job is still running
-          data$status <- unbox("running")
+          data$status <- "running"
         } else {
           # job finished successfully or failed
           result <- study$finalizeSEIJob()
           if (inherits(result, "try-error")) {
-            data$status <- unbox("failed")
+            data$status <- "failed"
             status <- 500L
           } else {
-            data$status <- unbox("finished")
+            data$status <- "finished"
           }
         }
       }
@@ -562,17 +562,17 @@ App <- setRefClass(
       if (study$hasSEI()) {
         seiTemplate <- getTemplate("sei.html")
         vars <- getTemplateVars()
-        data$html <- unbox(whisker::whisker.render(seiTemplate, data = vars))
+        data$html <- whisker::whisker.render(seiTemplate, data = vars)
 
         if (is.null(data$status)) {
-          data$status <- unbox("finished")
+          data$status <- "finished"
         }
       }
 
       if (length(data) == 0) {
         response <- makeTextResponse('Not found', 404L)
       } else {
-        response <- makeJSONResponse(data, status)
+        response <- makeJSONResponse(data, status, unbox = TRUE)
       }
       return(response)
     },
@@ -690,10 +690,10 @@ App <- setRefClass(
       return(response)
     },
 
-    makeJSONResponse = function(data, status = 200L) {
+    makeJSONResponse = function(data, status = 200L, unbox = FALSE) {
       response <- list(
         status = status, headers = list("Content-Type" = "application/json"),
-        body = toJSON(data)
+        body = toJSON(data, auto_unbox = unbox)
       )
       return(response)
     },

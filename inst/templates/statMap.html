@@ -32,8 +32,12 @@
     <span class="spinner spinner-border spinner-border-sm" role="status"></span>
     <span class="running">Running...</span>
   </button>
-  <pre id="sei-log" class="d-none mt-3 mb-3">
-  </pre>
+  <div id="sei-progress" class="d-none mt-3">
+    <p></p>
+    <div class="progress">
+      <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+  </div>
 </form>
 
 <script type="text/javascript">

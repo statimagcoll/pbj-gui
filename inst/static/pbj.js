@@ -208,8 +208,8 @@ function checkStatMap() {
     url: `/statMap?token=${token}`,
     contentType: 'application/json',
     success: function(result) {
-      let log = $('#statmap-log');
-      log.text(result.log).removeClass('d-none');
+      //let log = $('#statmap-log');
+      //log.text(result.log).removeClass('d-none');
 
       if (result.status == 'running') {
         setTimeout(checkStatMap, 3000);
@@ -217,7 +217,7 @@ function checkStatMap() {
         //console.log('statmap finished, setting up interface');
 
         // hide job log
-        log.addClass('d-none');
+        //log.addClass('d-none');
 
         // set statmap tab content
         //console.log('set statmap tab content');
@@ -490,14 +490,16 @@ function checkSEI() {
     url: `/sei?token=${token}`,
     contentType: 'application/json',
     success: function(result) {
-      let log = $('#sei-log')
-      log.text(result.log).removeClass('d-none');
+      let progress = $('#sei-progress').removeClass('d-none');
+      let pct = Math.round(result.progress.n / result.progress.total * 100);
+      progress.find('p').text(`Completed ${result.progress.n} of ${result.progress.total} passes.`)
+      progress.find('.progress-bar').width(`${pct}%`);
 
       if (result.status == 'running') {
         setTimeout(checkSEI, 3000);
       } else if (result.status == 'finished') {
-        // hide job log
-        log.addClass('d-none');
+        // hide job progress
+        progress.addClass('d-none');
 
         // set sei tab content
         $('#sei').html(result.html).ready(initSEI);

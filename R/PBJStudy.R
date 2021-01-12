@@ -4,7 +4,7 @@ PBJStudy <- setRefClass(
              "template", "formImages", "robust", "transform", "outdir",
              "zeros", "HC3", "mc.cores", "statMap", "cfts.s", "cfts.p",
              "nboot", "kernel", "rboot", "method", "sei", "statMapJob",
-             "seiJob", "cache"),
+             "seiJob", "seiProgressFile", "cache"),
   methods = list(
     initialize =
       function(images, form, formred, mask, data = NULL, W = NULL, Winv = NULL,
@@ -147,14 +147,17 @@ PBJStudy <- setRefClass(
       if (hasSEIJob()) {
         stop("seiJob already exists!")
       }
+      seiProgressFile <<- tempfile("sei-progress", fileext = ".json")
 
       # run pbjSEI in a separate R process
-      f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method, outdir, cache) {
+      f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method,
+                    outdir, cache, progress.file) {
         cacheFile <- file.path(outdir, "sei.rds")
         if (cache && file.exists(cacheFile)) {
           result <- readRDS(cacheFile)
         } else {
-          result <- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method)
+          result <- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot,
+                                method, "json", progress.file)
           if (cache) {
             saveRDS(result, cacheFile)
           }
@@ -162,15 +165,16 @@ PBJStudy <- setRefClass(
         return(result)
       }
       args <- list(
-        "statMap" = statMap,
-        "cfts.s"  = cfts.s,
-        "cfts.p"  = cfts.p,
-        "nboot"   = nboot,
-        "kernel"  = kernel,
-        "rboot"   = rboot,
-        "method"  = method,
-        "outdir"  = outdir,
-        "cache"   = cache
+        "statMap"       = statMap,
+        "cfts.s"        = cfts.s,
+        "cfts.p"        = cfts.p,
+        "nboot"         = nboot,
+        "kernel"        = kernel,
+        "rboot"         = rboot,
+        "method"        = method,
+        "outdir"        = outdir,
+        "cache"         = cache,
+        "progress.file" = seiProgressFile
       )
       seiJob <<- Job$new(f, args, "stdout")
       return(TRUE)
@@ -181,6 +185,13 @@ PBJStudy <- setRefClass(
         return(seiJob$readLog())
       }
       stop("seiJob doesn't exist!")
+    },
+
+    getSEIJobProgress = function() {
+      if (!hasSEIJob()) {
+        stop("seiJob doesn't exist!")
+      }
+      fromJSON(seiProgressFile)
     },
 
     isSEIJobRunning = function() {
@@ -196,6 +207,7 @@ PBJStudy <- setRefClass(
       }
       result <- seiJob$finalize()
       seiJob <<- NULL
+      unlink(seiProgressFile)
       if (inherits(result, "try-error")) {
         return(result)
       }
