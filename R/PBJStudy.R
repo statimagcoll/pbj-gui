@@ -4,7 +4,7 @@ PBJStudy <- setRefClass(
              "template", "formImages", "robust", "transform", "outdir",
              "zeros", "HC3", "mc.cores", "statMap", "cfts.s", "cfts.p",
              "nboot", "kernel", "rboot", "method", "sei", "statMapJob",
-             "seiJob", "seiProgressFile", "cache"),
+             "seiJob", "seiProgressFile", "datasetPath"),
   methods = list(
     initialize =
       function(images, form, formred, mask, data = NULL, W = NULL, Winv = NULL,
@@ -14,7 +14,7 @@ PBJStudy <- setRefClass(
                cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 200,
                kernel = "box", rboot = stats::rnorm,
                method = c('robust', 't', 'regular'), .outdir = NULL,
-               cache = FALSE) {
+               datasetPath = NULL) {
 
       images <<- images
       form <<- form
@@ -36,7 +36,7 @@ PBJStudy <- setRefClass(
       kernel <<- kernel
       rboot <<- rboot
       method <<- match.arg(method)
-      cache <<- cache
+      datasetPath <<- datasetPath
 
       if (is.null(.outdir)) {
         # create temporary directory for output
@@ -67,19 +67,11 @@ PBJStudy <- setRefClass(
       # run lmPBJ in a separate R process
       f <- function(images, form, formred, mask, data, W, Winv, template,
                     formImages, robust, transform, outdir, zeros, HC3,
-                    mc.cores, cache) {
+                    mc.cores) {
 
-        cacheFile <- file.path(outdir, "statMap.rds")
-        if (cache && file.exists(cacheFile)) {
-          result <- readRDS(cacheFile)
-        } else {
-          result <- pbj::lmPBJ(images, form, formred, mask, data, W, Winv,
-                               template, formImages, robust, transform, outdir,
-                               zeros, HC3, mc.cores)
-          if (cache) {
-            saveRDS(result, cacheFile)
-          }
-        }
+        result <- pbj::lmPBJ(images, form, formred, mask, data, W, Winv,
+                             template, formImages, robust, transform, outdir,
+                             zeros, HC3, mc.cores)
         return(result)
       }
       args <- list(
@@ -97,8 +89,7 @@ PBJStudy <- setRefClass(
         "outdir"     = outdir,
         "zeros"      = zeros,
         "HC3"        = HC3,
-        "mc.cores"   = mc.cores,
-        "cache"      = cache
+        "mc.cores"   = mc.cores
       )
       statMapJob <<- Job$new(f, args, "stderr")
       return(TRUE)
@@ -151,17 +142,11 @@ PBJStudy <- setRefClass(
 
       # run pbjSEI in a separate R process
       f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method,
-                    outdir, cache, progress.file) {
-        cacheFile <- file.path(outdir, "sei.rds")
-        if (cache && file.exists(cacheFile)) {
-          result <- readRDS(cacheFile)
-        } else {
-          result <- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot,
-                                method, "json", progress.file)
-          if (cache) {
-            saveRDS(result, cacheFile)
-          }
-        }
+                    outdir, progress.file) {
+
+        result <- pbj::pbjSEI(statMap, cfts.s, cfts.p, nboot, kernel, rboot,
+                              method, "json", progress.file)
+
         return(result)
       }
       args <- list(
@@ -173,7 +158,6 @@ PBJStudy <- setRefClass(
         "rboot"         = rboot,
         "method"        = method,
         "outdir"        = outdir,
-        "cache"         = cache,
         "progress.file" = seiProgressFile
       )
       seiJob <<- Job$new(f, args, "stdout")
@@ -261,6 +245,14 @@ PBJStudy <- setRefClass(
 
     plotHist = function(name) {
       hist(data[[name]], main = name, xlab = "")
+    },
+
+    save = function() {
+      dir <- tempfile("dir")
+      dir.create(dir)
+      path <- file.path(dir, paste0("pbj-", Sys.Date(), ".rds"))
+      saveRDS(.self, path)
+      return(path)
     }
   )
 )

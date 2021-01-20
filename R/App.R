@@ -1,19 +1,22 @@
 App <- setRefClass(
   Class = "PBJApp",
   fields = c("webRoot", "painRoot", "studyRoot", "staticPaths", "routes",
-             "token", "csvExt", "niftiExt", "datasetPath", "study"),
+             "token", "csvExt", "niftiExt", "study"),
   methods = list(
-    initialize = function(.studyRoot = NULL) {
+    initialize = function(.study = NULL) {
       csvExt <<- "\\.csv$"
       niftiExt <<- "\\.nii(\\.gz)?$"
       webRoot <<- file.path(find.package("pbjGUI"), "inst")
       painRoot <<- file.path(find.package("pain21"), "pain21")
-      if (is.null(.studyRoot)) {
-        studyRoot <<- tempfile()
+
+      if (!is.null(.study)) {
+        study <<- .study
+        studyRoot <<- study$outdir
       } else {
-        studyRoot <<- .studyRoot
+        study <<- NULL
+        studyRoot <<- tempfile()
+        dir.create(studyRoot)
       }
-      dir.create(studyRoot)
 
       # setup static paths for httpuv
       staticPaths <<- list(
@@ -24,6 +27,7 @@ App <- setRefClass(
       # setup routes
       routes <<- list(
         list(method = "GET", path = "^/$", handler = .self$getIndex),
+        list(method = "GET", path = "^/saveStudy$", handler = .self$saveStudy),
         list(method = "POST", path = "^/browse$", handler = .self$browse),
         list(method = "POST", path = "^/checkDataset$", handler = .self$checkDataset),
         list(method = "POST", path = "^/createStudy$", handler = .self$createStudy),
@@ -37,9 +41,6 @@ App <- setRefClass(
 
       # generate a random token for this session
       token <<- paste(as.character(openssl::rand_bytes(12)), collapse = "")
-
-      datasetPath <<- NULL
-      study <<- NULL
     },
 
     call = function(req) {
@@ -96,6 +97,17 @@ App <- setRefClass(
       # setup the response
       response <- makeHTMLResponse(body)
       return(response)
+    },
+
+    # handler for GET /saveStudy
+    saveStudy = function(req, query) {
+      if (is.null(study)) {
+        response <- makeTextResponse('Study does not exist', 400)
+        return(response)
+      }
+
+      path <- study$save()
+      return(makeAttachmentResponse(path))
     },
 
     # handler for POST /browse
@@ -215,8 +227,8 @@ App <- setRefClass(
       errors$template <- validatePath(params$template, dir = FALSE, pattern = niftiExt)
 
       if (is.null(errors$dataset)) {
-        path <- normalizePath(params$dataset, mustWork = TRUE)
-        dataset <- try(read.csv(path))
+        datasetPath <- normalizePath(params$dataset, mustWork = TRUE)
+        dataset <- try(read.csv(datasetPath))
         if (inherits(dataset, 'try-error')) {
           errors$dataset <- 'is not a valid CSV file'
         } else {
@@ -256,8 +268,6 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      datasetPath <<- path
-
       # create study object
       images <- normalizePath(dataset[[params$outcomeColumn]], mustWork = TRUE)
 #      if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
@@ -280,7 +290,8 @@ App <- setRefClass(
                              mask = mask,
                              data = dataset,
                              template = template,
-                             .outdir = studyRoot)
+                             .outdir = studyRoot,
+                             datasetPath = datasetPath)
 
       vars <- getTemplateVars()
       studyTemplate <- getTemplate("study.html")
@@ -593,7 +604,7 @@ App <- setRefClass(
 
       if (!is.null(study)) {
         result$study <- list(
-          datasetPath = datasetPath,
+          datasetPath = study$datasetPath,
           form = paste(as.character(study$form), collapse = " "),
           formred = paste(as.character(study$formred), collapse = " "),
           varInfo = study$getVarInfo(),
@@ -681,10 +692,18 @@ App <- setRefClass(
       return(makeFileResponse(filename, contentType, status))
     },
 
-    makeFileResponse = function(filename, contentType = "application/octet-stream", status = 200L) {
+    makeAttachmentResponse = function(filename, status = 200L) {
+      cd <- paste0('attachment; filename="', basename(filename), '"')
+      return(makeFileResponse(filename, status = status, contentDisposition = cd))
+    },
+
+    makeFileResponse = function(filename, contentType = "application/octet-stream", status = 200L, contentDisposition = "inline") {
       response <- list(
         status = status,
-        headers = list("Content-Type" = contentType),
+        headers = list(
+          "Content-Type" = contentType,
+          "Content-Disposition" = contentDisposition
+        ),
         body = c(file = filename)
       )
       return(response)
