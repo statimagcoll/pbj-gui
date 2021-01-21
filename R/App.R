@@ -6,7 +6,7 @@ App <- setRefClass(
     initialize = function(.study = NULL) {
       csvExt <<- "\\.csv$"
       niftiExt <<- "\\.nii(\\.gz)?$"
-      webRoot <<- file.path(find.package("pbjGUI"), "inst")
+      webRoot <<- file.path(find.package("pbjGUI"), "webroot")
       painRoot <<- file.path(find.package("pain21"), "pain21")
 
       if (!is.null(.study)) {
