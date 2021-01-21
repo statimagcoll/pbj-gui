@@ -2,19 +2,18 @@
 \alias{runPBJ}
 %- Also NEED an '\alias' for EACH other topic documented here.
 \title{
-%%  ~~function to do ... ~~
+  runPBJ
 }
 \description{
 %%  ~~ A concise (1-5 lines) description of what the function does. ~~
 }
 \usage{
-runPBJ(root)
+runPBJ(launch.browser = interactive(), study = NULL)
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{root}{
-%%     ~~Describe \code{root} here~~
-}
+  \item{launch.browser}{Whether to launch browser or not}
+  \item{study}{Use an existing study object}
 }
 \details{
 %%  ~~ If necessary, more details than the description above ~~
