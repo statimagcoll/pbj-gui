@@ -175,7 +175,7 @@ PBJStudy <- setRefClass(
       if (!hasSEIJob()) {
         stop("seiJob doesn't exist!")
       }
-      fromJSON(seiProgressFile)
+      jsonlite::fromJSON(seiProgressFile)
     },
 
     isSEIJobRunning = function() {

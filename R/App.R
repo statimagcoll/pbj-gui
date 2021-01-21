@@ -153,7 +153,7 @@ App <- setRefClass(
       vars <- list(
         path = path,
         parent = normalizePath(file.path(path, '..')),
-        files = rowSplit(files),
+        files = whisker::rowSplit(files),
         empty = (nrow(files) == 0)
       )
       data <- list(
@@ -681,7 +681,7 @@ App <- setRefClass(
     makeErrorResponse = function(errors, status = 400L) {
       response <- list(
         status = status, headers = list("Content-Type" = "application/json"),
-        body = toJSON(errors)
+        body = jsonlite::toJSON(errors)
       )
       class(response) <- c('error')
       return(response)
@@ -712,7 +712,7 @@ App <- setRefClass(
     makeJSONResponse = function(data, status = 200L, unbox = FALSE) {
       response <- list(
         status = status, headers = list("Content-Type" = "application/json"),
-        body = toJSON(data, auto_unbox = unbox)
+        body = jsonlite::toJSON(data, auto_unbox = unbox)
       )
       return(response)
     },
@@ -736,7 +736,7 @@ App <- setRefClass(
       result <- list()
 
       # parse query in URI
-      query <- decodeURIComponent(req$QUERY_STRING)
+      query <- httpuv::decodeURIComponent(req$QUERY_STRING)
       if (substr(query, 1, 1) != "?") {
         # invalid/empty query string
         return(result)
