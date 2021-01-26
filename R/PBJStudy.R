@@ -1,13 +1,14 @@
 PBJStudy <- setRefClass(
   Class = "PBJStudy",
-  fields = c("images", "form", "formred", "mask", "data", "W", "Winv",
-             "template", "formImages", "robust", "transform", "outdir",
-             "zeros", "HC3", "mc.cores", "statMap", "cfts.s", "cfts.p",
-             "nboot", "kernel", "rboot", "method", "sei", "statMapJob",
-             "seiJob", "seiProgressFile", "datasetPath"),
+  fields = c("images", "form", "formred", "mask", "data", "weightsColumn",
+             "invertedWeights", "template", "formImages", "robust",
+             "transform", "outdir", "zeros", "HC3", "mc.cores", "statMap",
+             "cfts.s", "cfts.p", "nboot", "kernel", "rboot", "method", "sei",
+             "statMapJob", "seiJob", "seiProgressFile", "datasetPath"),
   methods = list(
     initialize =
-      function(images, form, formred, mask, data = NULL, W = NULL, Winv = NULL,
+      function(images, form, formred, mask, data = NULL,
+               weightsColumn = NULL, invertedWeights = FALSE,
                template = NULL, formImages = NULL, robust = TRUE,
                transform = c('none', 't', 'edgeworth'), zeros = FALSE,
                HC3 = TRUE, mc.cores = getOption("mc.cores", 2L),
@@ -21,8 +22,8 @@ PBJStudy <- setRefClass(
       formred <<- formred
       mask <<- mask
       data <<- data
-      W <<- W
-      Winv <<- Winv
+      weightsColumn <<- weightsColumn
+      invertedWeights <<- invertedWeights
       template <<- template
       formImages <<- formImages
       robust <<- robust
@@ -74,6 +75,17 @@ PBJStudy <- setRefClass(
                              zeros, HC3, mc.cores)
         return(result)
       }
+
+      W <- NULL
+      Winv <- NULL
+      cat("weightsColumn = ", weightsColumn, "\n")
+      if (!is.null(weightsColumn)) {
+        if (invertedWeights) {
+          Winv <- data[[weightsColumn]]
+        } else {
+          W <- data[[weightsColumn]]
+        }
+      }
       args <- list(
         "images"     = images,
         "form"       = form,
@@ -91,6 +103,8 @@ PBJStudy <- setRefClass(
         "HC3"        = HC3,
         "mc.cores"   = mc.cores
       )
+      cat("lmPBJ arguments:\n")
+      print(args)
       statMapJob <<- Job$new(f, args, "stderr")
       return(TRUE)
     },
@@ -226,8 +240,15 @@ PBJStudy <- setRefClass(
           type = class(col),
           num = num,
           mean = if (num) mean(col) else NULL,
-          median = if (num) median(col) else NULL
+          median = if (num) median(col) else NULL,
+          isWeightsColumn = (weightsColumn == name)
         )
+      })
+    },
+
+    getTransformOptions = function() {
+      lapply(c("none", "t", "edgeworth"), function(opt) {
+        list(value = opt, selected = (transform == opt))
       })
     },
 

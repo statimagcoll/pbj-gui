@@ -6,8 +6,17 @@ App <- setRefClass(
     initialize = function(.study = NULL) {
       csvExt <<- "\\.csv$"
       niftiExt <<- "\\.nii(\\.gz)?$"
-      webRoot <<- file.path(find.package("pbjGUI"), "webroot")
       painRoot <<- file.path(find.package("pain21"), "pain21")
+
+      webRoot <<- file.path(find.package("pbjGUI"), "webroot")
+      if (!dir.exists(webRoot)) {
+        # try to find webroot in the inst directory
+        webRoot <<- file.path(find.package("pbjGUI"), "inst", "webroot")
+
+        if (!dir.exists(webRoot)) {
+          stop("Can't find package webroot directory!")
+        }
+      }
 
       if (!is.null(.study)) {
         study <<- .study
@@ -246,21 +255,6 @@ App <- setRefClass(
                                              paste(row.names(bad), collapse = ", "))
             }
           }
-
-#          # check weights column (if it exists)
-#          if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
-#            if (!(params$weightsColumn %in% names(dataset))) {
-#              errors$weightsColumn <- 'is not present in dataset'
-#            } else {
-#              # check for valid filenames
-#              info <- file.info(dataset[[params$weightsColumn]])
-#              bad <- subset(info, is.na(size))
-#              if (nrow(bad) > 0) {
-#                errors$weightsColumn <- paste0("contains missing files: ",
-#                                               paste(row.names(bad), collapse = ", "))
-#              }
-#            }
-#          }
         }
       }
 
@@ -270,18 +264,6 @@ App <- setRefClass(
 
       # create study object
       images <- normalizePath(dataset[[params$outcomeColumn]], mustWork = TRUE)
-#      if (!is.null(params$weightsColumn) && nzchar(params$weightsColumn)) {
-#        weights <- normalizePath(dataset[[params$weightsColumn]], mustWork = TRUE)
-#      } else {
-#        weights <- NULL
-#      }
-#      if (params$invertedWeights == "1") {
-#        W <- NULL
-#        Winv <- weights
-#      } else {
-#        W <- weights
-#        Winv <- NULL
-#      }
       mask <- normalizePath(params$mask, mustWork = TRUE)
       template <- normalizePath(params$template, mustWork = TRUE)
       study <<- PBJStudy$new(images = images,
@@ -411,20 +393,103 @@ App <- setRefClass(
           errors$formfull <- 'is invalid'
         }
       }
-      if ("formred" %in% names(params) && nzchar(params$formred)) {
-        formred <- try(as.formula(params$formred))
-        if (inherits(formred, 'try-error')) {
-          errors$formred <- 'is invalid'
+
+      formred <- NULL
+      if ("formred" %in% names(params)) {
+        if (!is.character(params$formred)) {
+          errors$formred <- 'must be a string'
+        } else if (nzchar(params$formred)) {
+          formred <- try(as.formula(params$formred))
+          if (inherits(formred, 'try-error')) {
+            errors$formred <- 'is not a valid formula'
+          }
         }
       } else {
         formred <- NULL
       }
+
+      weightsColumn <- NULL
+      if ("weightsColumn" %in% names(params)) {
+        if (!is.character(params$weightsColumn)) {
+          errors$weightsColumn <- 'must be a string'
+        } else if (nzchar(params$weightsColumn)) {
+          if (!(params$weightsColumn %in% names(study$data))) {
+            errors$weightsColumn <- 'is not a valid column name'
+          } else {
+            weightsColumn <- params$weightsColumn
+          }
+        }
+      }
+
+      invertedWeights <- FALSE
+      if ("invertedWeights" %in% names(params)) {
+        if (isTRUE(params$invertedWeights)) {
+          invertedWeights <- TRUE
+        } else if (isFALSE(params$invertedWeights)) {
+          invertedWeights <- FALSE
+        } else {
+          errors$invertedWeights <- 'must be either true or false'
+        }
+      }
+
+      robust <- TRUE
+      if ("robust" %in% names(params)) {
+        if (isTRUE(params$robust)) {
+          robust <- TRUE
+        } else if (isFALSE(params$robust)) {
+          robust <- FALSE
+        } else {
+          errors$robust <- 'must be either true or false'
+        }
+      }
+
+      transform <- "none"
+      if ("transform" %in% names(params)) {
+        if (params$transform == "none") {
+          transform <- "none"
+        } else if (params$transform == "t") {
+          transform <- "t"
+        } else if (params$transform == "edgeworth") {
+          transform <- "edgeworth"
+        } else {
+          errors$transform <- 'must be "none", "t", or "edgeworth"'
+        }
+      }
+
+      zeros <- FALSE
+      if ("zeros" %in% names(params)) {
+        if (isTRUE(params$zeros)) {
+          zeros <- TRUE
+        } else if (isFALSE(params$zeros)) {
+          zeros <- FALSE
+        } else {
+          errors$zeros <- 'must be either true or false'
+        }
+      }
+
+      HC3 <- FALSE
+      if ("HC3" %in% names(params)) {
+        if (isTRUE(params$HC3)) {
+          HC3 <- TRUE
+        } else if (isFALSE(params$HC3)) {
+          HC3 <- FALSE
+        } else {
+          errors$HC3 <- 'must be either true or false'
+        }
+      }
+
       if (length(errors) > 0) {
         return(makeErrorResponse(errors))
       }
 
       study$form <<- formfull
       study$formred <<- formred
+      study$weightsColumn <<- weightsColumn
+      study$invertedWeights <<- invertedWeights
+      study$robust <<- robust
+      study$transform <<- transform
+      study$zeros <<- zeros
+      study$HC3 <<- HC3
 
       result <- try(study$startStatMapJob())
       if (inherits(result, 'try-error')) {
@@ -607,6 +672,11 @@ App <- setRefClass(
           datasetPath = study$datasetPath,
           form = paste(as.character(study$form), collapse = " "),
           formred = paste(as.character(study$formred), collapse = " "),
+          invertedWeights = study$invertedWeights,
+          robust = study$robust,
+          transformOptions = study$getTransformOptions(),
+          zeros = study$zeros,
+          HC3 = study$HC3,
           varInfo = study$getVarInfo(),
           cftLower = study$cfts.s[1],
           cftUpper = study$cfts.s[2],

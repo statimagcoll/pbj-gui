@@ -334,7 +334,13 @@ function initMain() {
     let data = {
       'token': token,
       'formfull': form.find('input[name="formfull"]').val(),
-      'formred':  form.find('input[name="formred"]').val()
+      'formred':  form.find('input[name="formred"]').val(),
+      'weightsColumn': form.find('select[name="weightsColumn"]').val(),
+      'invertedWeights': form.find('input[name="invertedWeights"]').is(":checked"),
+      'robust': form.find('input[name="robust"]').is(":checked"),
+      'transform': form.find('select[name="transform"]').val(),
+      'zeros': form.find('input[name="zeros"]').is(":checked"),
+      'HC3': form.find('input[name="HC3"]').is(":checked"),
     };
 
     $('#model-submit').prop('disabled', true).
