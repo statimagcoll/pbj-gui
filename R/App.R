@@ -678,8 +678,8 @@ App <- setRefClass(
           zeros = study$zeros,
           HC3 = study$HC3,
           varInfo = study$getVarInfo(),
-          cftLower = study$cfts.s[1],
-          cftUpper = study$cfts.s[2],
+          cftTypeOptions = study$getCftTypeOptions(),
+          cftValues = study$getCftValues(),
           nboot = study$nboot,
           hasStatMap = study$hasStatMap(),
           hasSEI = study$hasSEI()

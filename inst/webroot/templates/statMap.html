@@ -1,25 +1,47 @@
 {{#study}}{{#hasStatMap}}
 <form id="statmap-visualize-form" autocomplete="off">
   <div class="form-group">
-    <label for="statmap-image">StatMap Image:</label>
-    <select id="statmap-image" name="image">
+    <label for="statmap-image">StatMap image</label>
+    <select id="statmap-image" class="form-control" name="image">
       <option data-name="stat" selected>stat</option>
       <option data-name="coef">coef</option>
     </select>
   </div>
 </form>
 
-<p class="border-bottom font-weight-bold">SEI</p>
+<p style="border-bottom: 1px solid lightgray; font-weight: bold">
+  Spacial extent inference (SEI)
+</p>
 <form id="sei-form" class="mt-4">
-  <div class="form-group">
-    <label>Cluster forming thresholds</label>
-    <div class="input-group">
-      <input id="sei-cft-lower" class="form-control" name="cftLower"
-             type="number" value="{{cftLower}}">
-      <input id="sei-cft-upper" class="form-control" name="cftUpper"
-             type="number" value="{{cftUpper}}">
+  <fieldset class="d-flex flex-column form-group">
+    <legend>Cluster forming thresholds</legend>
+    <div class="d-flex flex-row mb-2">
+      {{#cftTypeOptions}}
+        <p>Threshold type:</p>
+        <div class="form-check mr-4">
+          <input class="form-check-input" type="radio" name="cftType" id="cft-type-s" value="s"{{#s}} checked{{/s}}>
+          <label class="form-check-label" for="cft-type-s">Effect size</label>
+        </div>
+        <div class="form-check mr-4">
+          <input class="form-check-input" type="radio" name="cftType" id="cft-type-p" value="p"{{#p}} checked{{/p}}>
+          <label class="form-check-label" for="cft-type-p">p-value</label>
+        </div>
+      {{/cftTypeOptions}}
     </div>
-  </div>
+    <div class="d-flex flex-row">
+      {{#cftValues}}
+        <div class="d-flex flex-row">
+          <input class="form-control sei-cft" name="cfts[]" type="number" value="{{value}}">
+          <button class="sei-cft-remove btn btn-light" data-index="{{index}}">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
+      {{/cftValues}}
+    </div>
+    <p>
+      <button id="sei-cft-add" class="btn btn-light"><i class="fa fa-plus"></i> Add</button>
+    </p>
+  </fieldset>
 
   <div class="form-group">
     <label for="sei-nboot">Number of bootstrap samples to use</label>
