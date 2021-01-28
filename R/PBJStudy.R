@@ -3,7 +3,7 @@ PBJStudy <- setRefClass(
   fields = c("images", "form", "formred", "mask", "data", "weightsColumn",
              "invertedWeights", "template", "formImages", "robust",
              "transform", "outdir", "zeros", "HC3", "mc.cores", "statMap",
-             "cfts.s", "cfts.p", "nboot", "kernel", "rboot", "method", "sei",
+             "cftType", "cfts","nboot", "kernel", "rboot", "method", "sei",
              "statMapJob", "seiJob", "seiProgressFile", "datasetPath"),
   methods = list(
     initialize =
@@ -12,7 +12,7 @@ PBJStudy <- setRefClass(
                template = NULL, formImages = NULL, robust = TRUE,
                transform = c('none', 't', 'edgeworth'), zeros = FALSE,
                HC3 = TRUE, mc.cores = getOption("mc.cores", 2L),
-               cfts.s = c(0.1, 0.25), cfts.p = NULL, nboot = 200,
+               cftType = c("s", "p"), cfts = c(0.1, 0.25), nboot = 200,
                kernel = "box", rboot = stats::rnorm,
                method = c('robust', 't', 'regular'), .outdir = NULL,
                datasetPath = NULL) {
@@ -31,8 +31,8 @@ PBJStudy <- setRefClass(
       zeros <<- zeros
       HC3 <<- HC3
       mc.cores <<- mc.cores
-      cfts.s <<- cfts.s
-      cfts.p <<- cfts.p
+      cftType <<- match.arg(cftType)
+      cfts <<- cfts
       nboot <<- nboot
       kernel <<- kernel
       rboot <<- rboot
@@ -78,7 +78,6 @@ PBJStudy <- setRefClass(
 
       W <- NULL
       Winv <- NULL
-      cat("weightsColumn = ", weightsColumn, "\n")
       if (!is.null(weightsColumn)) {
         if (invertedWeights) {
           Winv <- data[[weightsColumn]]
@@ -103,8 +102,6 @@ PBJStudy <- setRefClass(
         "HC3"        = HC3,
         "mc.cores"   = mc.cores
       )
-      cat("lmPBJ arguments:\n")
-      print(args)
       statMapJob <<- Job$new(f, args, "stderr")
       return(TRUE)
     },
@@ -162,6 +159,14 @@ PBJStudy <- setRefClass(
                               method, "json", progress.file)
 
         return(result)
+      }
+
+      cfts.s <- NULL
+      cfts.p <- NULL
+      if (cftType == "s") {
+        cfts.s <- cfts
+      } else if (cftType == "p") {
+        cfts.p <- cfts
       }
       args <- list(
         "statMap"       = statMap,
@@ -256,16 +261,21 @@ PBJStudy <- setRefClass(
       is.numeric(data[[name]])
     },
 
-    getWeights = function() {
-      if (!is.null(W)) {
-        return(W)
-      } else {
-        return(Winv)
-      }
-    },
-
     plotHist = function(name) {
       hist(data[[name]], main = name, xlab = "")
+    },
+
+    getCftTypeOptions = function() {
+      list(
+        "s" = (cftType == "s"),
+        "p" = (cftType == "p")
+      )
+    },
+
+    getCftValues = function() {
+      lapply(1:length(cfts), function(i) {
+        list(index = i, value = cfts[i])
+      })
     },
 
     save = function() {

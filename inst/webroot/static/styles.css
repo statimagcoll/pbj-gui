@@ -98,6 +98,24 @@ table.browse tbody tr.selected td {
   display: inline-block;
 }
 
+fieldset {
+  border: 1px solid lightgray;
+  padding: 0.5rem;
+}
+
+fieldset legend {
+  width: auto;
+  font-size: 1rem;
+}
+
+input.sei-cft {
+  width: 5rem;
+}
+
+.sei-cft-trash {
+
+}
+
 /* finagle this to limit the width of the container to 1.5 times the height */
 .papaya-container {
   padding: 0 calc((70vw - ((100vh - 10rem) * 1.5)) / 2);

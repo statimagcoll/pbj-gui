@@ -437,6 +437,17 @@ function initStatMapPapaya() {
   papaya.Container.addViewer('visualize-statmap-papaya', params);
 }
 
+function deleteSeiCft(event) {
+  event.preventDefault();
+
+  if ($('#sei-cft-groups .sei-cft-group').length == 1) {
+    // don't delete the last one
+    return;
+  }
+
+  $(event.target).parent('.sei-cft-group').remove();
+}
+
 function initStatMap() {
   //console.log('running initStatMap');
   $('#statmap-image').change(function(e) {
@@ -457,8 +468,8 @@ function initStatMap() {
     let form = $(this);
     let data = {
       'token': token,
-      'cftLower': form.find('input[name="cftLower"]').val(),
-      'cftUpper': form.find('input[name="cftUpper"]').val(),
+      'cftType': form.find('input[name="cftType"]:checked').val(),
+      'cfts': form.find('input[name="cfts[]"]').map(function(i) { return $(this).val() }).get(),
       'nboot': form.find('input[name="nboot"]').val()
     };
 
@@ -478,6 +489,16 @@ function initStatMap() {
       }
     });
   });
+
+  $('#sei-form #sei-cft-add').click(function(event) {
+    event.preventDefault();
+
+    // copy existing cft group
+    let elt = $('#sei-form .sei-cft-group:last-child').clone().appendTo('#sei-cft-groups');
+    elt.find('.sei-cft-trash').click(deleteSeiCft);
+  });
+
+  $('#sei-form .sei-cft-trash').click(deleteSeiCft);
 
   //// initialize papaya if statMap tab is active
   //if ($('#statmap-tab').hasClass('active')) {

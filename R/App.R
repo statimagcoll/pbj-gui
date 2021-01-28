@@ -554,35 +554,44 @@ App <- setRefClass(
       # validate params
       errors <- list()
       params <- result
-      if (!("cftLower" %in% names(params))) {
-        # missing CFT lower bound
-        errors$cftLower <- 'is required'
+      cftType <- "s"
+      if (!("cftType" %in% names(params))) {
+        # missing CFT type
+        errors$cftType <- 'is required'
+      } else if (!(params$cftType %in% c("s", "p"))) {
+        errors$cftType <- 'must be "s" or "p"'
       } else {
-        cftLower <- as.numeric(params$cftLower)
-        if (is.na(cftLower)) {
-          errors$cftLower <- 'is invalid'
-        } else if (cftLower < 0.00001) {
-          errors$cftLower <- 'is too small'
-        } else if (cftLower > 0.99999) {
-          errors$cftLower <- 'is too large'
+        cftType <- params$cftType
+      }
+
+      cfts <- NULL
+      if (!("cfts" %in% names(params))) {
+        errors$cfts <- 'is required'
+      } else if (!is.list(params$cfts)) {
+        errors$cfts <- 'must be a list'
+      } else if (length(params$cfts) == 0) {
+        errors$cfts <- 'must have at least 1 value'
+      } else {
+        for (i in 1:length(params$cfts)) {
+          value <- as.numeric(params$cfts[[i]])
+          if (is.na(value)) {
+            errors$cfts <- 'has invalid values'
+            break
+          }
+          if (value < 0.00001) {
+            errors$cfts <- 'has values that are too small'
+            break
+          }
+          if (value > 0.99999) {
+            errors$cfts <- 'has values that are too large'
+            break
+          }
+        }
+        if (is.null(errors$cfts)) {
+          cfts <- as.numeric(params$cfts)
         }
       }
-      if (!("cftUpper" %in% names(params))) {
-        # missing CFT upper bound
-        errors$cftUpper <- 'is required'
-      } else {
-        cftUpper <- as.numeric(params$cftUpper)
-        if (is.na(cftUpper)) {
-          errors$cftUpper <- 'is invalid'
-        } else if (cftUpper < 0.00001) {
-          errors$cftUpper <- 'is too small'
-        } else if (cftUpper > 0.99999) {
-          errors$cftUpper <- 'is too large'
-        }
-      }
-      if (is.null(errors$cftLower) && is.null(errors$cftUpper) && cftLower > cftUpper) {
-        errors$cftLower <- 'must be less than or equal to cftUpper'
-      }
+
       if (!("nboot" %in% names(params))) {
         errors$nboot <- 'is required'
       } else {
@@ -598,7 +607,8 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      study$cfts.s <<- c(cftLower, cftUpper)
+      study$cftType <<- cftType
+      study$cfts <<- cfts
       study$nboot <<- nboot
 
       result <- try(study$startSEIJob())
@@ -678,8 +688,8 @@ App <- setRefClass(
           zeros = study$zeros,
           HC3 = study$HC3,
           varInfo = study$getVarInfo(),
-          cftLower = study$cfts.s[1],
-          cftUpper = study$cfts.s[2],
+          cftTypeOptions = study$getCftTypeOptions(),
+          cftValues = study$getCftValues(),
           nboot = study$nboot,
           hasStatMap = study$hasStatMap(),
           hasSEI = study$hasSEI()
