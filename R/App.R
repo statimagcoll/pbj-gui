@@ -305,13 +305,32 @@ App <- setRefClass(
           ext <- substr(parts[2], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
 
           # find candidate file
-          candidate <- NULL
           if (index >= 1 && index <= length(study$images)) {
             candidate <- study$images[index]
           }
         }
+      } else if (parts[1] == "sei") {
+        if (study$hasSEI()) {
+          cftName <- parts[2]
+          imageName <- parts[3]
+          if (cftName %in% names(study$sei)) {
+            cft <- study$sei[[cftName]]
+            md <- regexpr("^(clustermap|pmap)(\\.nii(\\.gz)?)$", imageName, ignore.case = TRUE, perl = TRUE)
+            if (md >= 0) {
+              type <- substr(imageName, attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
+              ext <- substr(imageName, attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
+
+              # find candidate file
+              if (type == "clustermap") {
+                candidate <- study$sei[[cftName]]$clustermapfile
+              } else if (type == "pmap") {
+                candidate <- study$sei[[cftName]]$pmapfile
+              }
+            }
+          }
+        }
       } else {
-        md <- regexpr("^(template|mask|statMapStat|statMapCoef|seiCftLower|seiCftUpper)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
+        md <- regexpr("^(template|mask|statMapStat|statMapCoef)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
         if (md >= 0) {
           type <- substr(parts[1], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
           ext <- substr(parts[1], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
@@ -324,10 +343,6 @@ App <- setRefClass(
             candidate <- study$statMap$stat
           } else if (type == "statMapCoef" && !is.null(study$statMap)) {
             candidate <- study$statMap$coef
-          } else if (type == "seiCftLower" && !is.null(study$sei)) {
-            candidate <- study$sei[[5]]$clustermapfile
-          } else if (type == "seiCftUpper" && !is.null(study$sei)) {
-            candidate <- study$sei[[6]]$clustermapfile
           }
         }
       }
@@ -746,7 +761,27 @@ App <- setRefClass(
 
         sei <- NULL
         if (study$hasSEI()) {
-          sei <- list(hasTemplate = hasTemplate, templateExt = templateExt)
+          cfts <- lapply(5:length(study$sei), function(i) {
+            list(
+              index = i,
+              selected = (i == 5),
+              name = names(study$sei)[i],
+              sname = gsub("\\W", "_", names(study$sei)[i]),
+              boots = study$sei[[i]]$boots,
+              clusters = lapply(names(study$sei[[i]]$obs), function(n) {
+                list(
+                  name = n,
+                  size = unname(study$sei[[i]]$obs[n]),
+                  pvalue = unname(study$sei[[i]]$pvalues[n])
+                )
+              })
+            )
+          })
+          sei <- list(
+            hasTemplate = hasTemplate,
+            templateExt = templateExt,
+            cfts = cfts
+          )
         }
         result$study$sei <- sei
       }

@@ -108,12 +108,21 @@ fieldset legend {
   font-size: 1rem;
 }
 
-input.sei-cft {
+input.sei-cft-input {
   width: 5rem;
 }
 
-.sei-cft-trash {
+.sei-cft .table-wrapper {
+  max-height: 40vh;
+  overflow-y: auto;
+  position: relative;
+}
 
+.sei-cft table thead th {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 /* finagle this to limit the width of the container to 1.5 times the height */

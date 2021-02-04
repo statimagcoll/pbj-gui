@@ -553,8 +553,8 @@ function getSEIPapayaParams() {
     return undefined;
   }
 
-  let active = $('#sei-image option:selected');
-  let imageName = active.data('name');
+  let cftName = $('#sei-cft').val();
+  let imageName = $(`#sei-cft-${cftName}-visualize-form select`).val();
 
   let params = [];
   params['images'] = [];
@@ -562,7 +562,7 @@ function getSEIPapayaParams() {
   if ('template' in seiInfo) {
     params['images'].push(seiInfo['template'])
   }
-  params['images'].push(seiInfo[imageName])
+  params['images'].push(seiInfo['cfts'][cftName][imageName])
 
   return params;
 }
@@ -570,7 +570,6 @@ function getSEIPapayaParams() {
 function initSEIPapaya() {
   //console.log('running initSEIPapaya');
   let params = getSEIPapayaParams();
-  console.log(params);
   if (params === undefined) {
     console.error('sei params is undefined!');
     return;
@@ -580,7 +579,8 @@ function initSEIPapaya() {
 }
 
 function initSEI() {
-  $('#sei-image').change(function(e) {
+  $('#sei-cft, select.sei-cft-image').change(function(e) {
+    let cftName = $('#sei-cft').val();
     let index = getPapayaIndex('sei');
     if (index > -1) {
       let params = getSEIPapayaParams();
@@ -590,5 +590,8 @@ function initSEI() {
       }
       papaya.Container.resetViewer(index, params);
     }
+
+    $('.sei-cft').addClass('d-none');
+    $(`#sei-cft-${cftName}`).removeClass('d-none');
   });
 }
