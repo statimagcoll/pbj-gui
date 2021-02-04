@@ -470,6 +470,7 @@ function initStatMap() {
       'token': token,
       'cftType': form.find('input[name="cftType"]:checked').val(),
       'cfts': form.find('input[name="cfts[]"]').map(function(i) { return $(this).val() }).get(),
+      'method': form.find('select[name="method"]').val(),
       'nboot': form.find('input[name="nboot"]').val()
     };
 

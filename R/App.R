@@ -592,6 +592,16 @@ App <- setRefClass(
         }
       }
 
+      method <- NULL
+      if (!("method" %in% names(params))) {
+        errors$method <- 'is required'
+      } else if (!(params$method %in% c('t', 'permutation', 'conditional', 'nonparametric'))) {
+        errors$method <- 'is invalid'
+      } else {
+        method <- params$method
+      }
+
+      nboot <- NULL
       if (!("nboot" %in% names(params))) {
         errors$nboot <- 'is required'
       } else {
@@ -609,6 +619,7 @@ App <- setRefClass(
 
       study$cftType <<- cftType
       study$cfts <<- cfts
+      study$method <<- method
       study$nboot <<- nboot
 
       result <- try(study$startSEIJob())
@@ -692,7 +703,8 @@ App <- setRefClass(
           cftValues = study$getCftValues(),
           nboot = study$nboot,
           hasStatMap = study$hasStatMap(),
-          hasSEI = study$hasSEI()
+          hasSEI = study$hasSEI(),
+          methodOptions = study$getMethodOptions()
         )
 
         # get file extension for template image

@@ -14,8 +14,8 @@ PBJStudy <- setRefClass(
                HC3 = TRUE, mc.cores = getOption("mc.cores", 2L),
                cftType = c("s", "p"), cfts = c(0.1, 0.25), nboot = 200,
                kernel = "box", rboot = stats::rnorm,
-               method = c('robust', 't', 'regular'), .outdir = NULL,
-               datasetPath = NULL) {
+               method = c('t', 'permutation', 'conditional', 'nonparametric'),
+               .outdir = NULL, datasetPath = NULL) {
 
       images <<- images
       form <<- form
@@ -218,15 +218,14 @@ PBJStudy <- setRefClass(
       sei <<- result
 
       # write out image files (which PBJ doesn't do yet)
-      cftLower <- sei[[5]]
-      cftLowerName <- names(sei)[5]
-      sei[[5]]$clustermapfile <<- file.path(outdir, paste0('sei-', cftLowerName, '-clustermap.nii.gz'))
-      RNifti::writeNifti(cftLower$clustermap, sei[[5]]$clustermapfile)
-
-      cftUpper <- sei[[6]]
-      cftUpperName <- names(sei)[6]
-      sei[[6]]$clustermapfile <<- file.path(outdir, paste0('sei-', cftUpperName, '-clustermap.nii.gz'))
-      RNifti::writeNifti(cftUpper$clustermap, sei[[6]]$clustermapfile)
+      for (i in 5:length(sei)) {
+        cft <- sei[[i]]
+        cftName <- names(sei)[i]
+        sei[[i]]$clustermapfile <<- file.path(outdir, paste0('sei-', cftName, '-clustermap.nii.gz'))
+        RNifti::writeNifti(sei[[i]]$clustermap, sei[[i]]$clustermapfile)
+        sei[[i]]$pmapfile <<- file.path(outdir, paste0('sei-', cftName, '-pmap.nii.gz'))
+        RNifti::writeNifti(sei[[i]]$pmap, sei[[i]]$pmapfile)
+      }
 
       return(TRUE)
     },
@@ -275,6 +274,12 @@ PBJStudy <- setRefClass(
     getCftValues = function() {
       lapply(1:length(cfts), function(i) {
         list(index = i, value = cfts[i])
+      })
+    },
+
+    getMethodOptions = function() {
+      lapply(c('t', 'permutation', 'conditional', 'nonparametric'), function(opt) {
+        list(value = opt, selected = (method == opt))
       })
     },
 
