@@ -222,9 +222,13 @@ PBJStudy <- setRefClass(
         cft <- sei[[i]]
         cftName <- names(sei)[i]
         sei[[i]]$clustermapfile <<- file.path(outdir, paste0('sei-', cftName, '-clustermap.nii.gz'))
-        RNifti::writeNifti(sei[[i]]$clustermap, sei[[i]]$clustermapfile)
+        suppressWarnings({
+          RNifti::writeNifti(sei[[i]]$clustermap, sei[[i]]$clustermapfile)
+        })
         sei[[i]]$pmapfile <<- file.path(outdir, paste0('sei-', cftName, '-pmap.nii.gz'))
-        RNifti::writeNifti(sei[[i]]$pmap, sei[[i]]$pmapfile)
+        suppressWarnings({
+          RNifti::writeNifti(sei[[i]]$pmap, sei[[i]]$pmapfile)
+        })
       }
 
       return(TRUE)

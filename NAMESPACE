@@ -1,2 +1,2 @@
-export(runPBJ)
+export(runPBJ, PBJStudy)
 importFrom(jsonlite, unbox)
