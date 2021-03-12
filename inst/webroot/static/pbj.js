@@ -404,6 +404,9 @@ function initMain() {
   if ($('#study-tab').hasClass('active')) {
     initStudyPapaya();
   }
+
+  // init popovers in model tab
+  $('#model [data-toggle="popover"]').popover();
 }
 
 function getStatMapPapayaParams() {

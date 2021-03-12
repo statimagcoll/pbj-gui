@@ -52,6 +52,10 @@ table.browse tbody tr.selected td {
   cursor: pointer;
 }
 
+#model-form i.far {
+  color: gray;
+}
+
 #model-visualize-form .table-wrapper {
   max-height: 30vh;
   overflow-y: auto;
