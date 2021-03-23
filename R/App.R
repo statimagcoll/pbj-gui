@@ -1,10 +1,10 @@
 App <- setRefClass(
   Class = "PBJApp",
   fields = c("webRoot", "painRoot", "studyRoot", "staticPaths", "routes",
-             "token", "csvExt", "niftiExt", "study"),
+             "token", "datasetExt", "niftiExt", "study"),
   methods = list(
     initialize = function(.study = NULL) {
-      csvExt <<- "\\.csv$"
+      datasetExt <<- "\\.(csv|rds)$"
       niftiExt <<- "\\.nii(\\.gz)?$"
       painRoot <<- file.path(find.package("pain21"), "pain21")
 
@@ -146,15 +146,15 @@ App <- setRefClass(
           ext <- niftiExt
           glob <- "*.nii, *.nii.gz"
         } else if (params$type == "csv") {
-          ext <- csvExt
-          glob <- "*.csv"
+          ext <- datasetExt
+          glob <- "*.csv, *.rds"
         }
       }
 
       files <- file.info(list.files(path, full.names = TRUE))
       files$path <- row.names(files)
       files$name <- basename(files$path)
-      files <- files[grepl(ext, files$name) | files$isdir,]
+      files <- files[grepl(ext, files$name, ignore.case = TRUE) | files$isdir,]
       files$type <- ifelse(files$isdir, "folder", "file")
       files <- files[order(!files$isdir, files$name),]
 
@@ -175,6 +175,17 @@ App <- setRefClass(
       return(response)
     },
 
+    readDataset = function(path) {
+      ext <- tolower(tools::file_ext(path))
+      if (ext == "csv") {
+        read.csv(path)
+      } else if (ext == "rds") {
+        readRDS(path)
+      } else {
+        stop("unsupported file extension")
+      }
+    },
+
     # handler for POST /checkDataset
     checkDataset = function(req, query) {
       result <- parsePost(req)
@@ -185,22 +196,24 @@ App <- setRefClass(
 
       params <- result
       errors <- list()
-      errors$path <- validatePath(params$path, dir = FALSE, pattern = csvExt)
+      errors$path <- validatePath(params$path, dir = FALSE, pattern = datasetExt)
       if (is.null(errors$path)) {
         # no errors so far
         path <- normalizePath(params$path, mustWork = TRUE)
-        dataset <- try(read.csv(path))
+        dataset <- try(readDataset(path))
         if (inherits(dataset, "try-error")) {
-          errors$path <- "is not a valid CSV file"
+          errors$path <- "is not a valid dataset file"
         }
 
-        # try to guess what columns contain image path information
-        columns <- which(apply(dataset, MARGIN = 2,
-                               FUN = function(col) any(grepl(niftiExt, col, ignore.case = TRUE))))
-        if (length(columns) == 0) {
-          errors$path <- "does not contain file paths to NIFTI images"
-        } else {
-          columns <- names(dataset)[columns]
+        if (!inherits(dataset, "try-error")) {
+          # try to guess what columns contain image path information
+          columns <- which(apply(dataset, MARGIN = 2,
+                                 FUN = function(col) any(grepl(niftiExt, col, ignore.case = TRUE))))
+          if (length(columns) == 0) {
+            errors$path <- "does not contain file paths to NIFTI images"
+          } else {
+            columns <- names(dataset)[columns]
+          }
         }
       }
 
@@ -231,15 +244,15 @@ App <- setRefClass(
 
       params <- result
       errors <- list()
-      errors$dataset <- validatePath(params$dataset, dir = FALSE, pattern = csvExt)
+      errors$dataset <- validatePath(params$dataset, dir = FALSE, pattern = datasetExt)
       errors$mask <- validatePath(params$mask, dir = FALSE, pattern = niftiExt)
       errors$template <- validatePath(params$template, dir = FALSE, pattern = niftiExt)
 
       if (is.null(errors$dataset)) {
         datasetPath <- normalizePath(params$dataset, mustWork = TRUE)
-        dataset <- try(read.csv(datasetPath))
-        if (inherits(dataset, 'try-error')) {
-          errors$dataset <- 'is not a valid CSV file'
+        dataset <- try(readDataset(datasetPath))
+        if (inherits(dataset, "try-error")) {
+          errors$path <- "is not a valid dataset file"
         } else {
           # check outcome column
           if (is.null(params$outcomeColumn) || !nzchar(params$outcomeColumn)) {
