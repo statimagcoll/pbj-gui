@@ -13,7 +13,8 @@ PBJStudy <- setRefClass(
                transform = c('none', 't', 'edgeworth'), zeros = FALSE,
                HC3 = TRUE, mc.cores = getOption("mc.cores", 2L),
                cftType = c("s", "p"), cfts = c(0.1, 0.25), nboot = 200,
-               kernel = "box", rboot = stats::rnorm,
+               kernel = "box",
+               rboot = function(n) { (2*stats::rbinom(n, size=1, prob=0.5)-1) },
                method = c('t', 'permutation', 'conditional', 'nonparametric'),
                .outdir = NULL, datasetPath = NULL) {
 
