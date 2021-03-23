@@ -508,6 +508,9 @@ function initStatMap() {
   //if ($('#statmap-tab').hasClass('active')) {
     //setTimeout(initStatMapPapaya, 500);
   //}
+
+  // init popovers in statmap tab
+  $('#statmap [data-toggle="popover"]').popover({ 'html': true });
 }
 
 function checkSEI() {

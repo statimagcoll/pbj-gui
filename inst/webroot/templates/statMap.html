@@ -1,10 +1,17 @@
 {{#study}}{{#hasStatMap}}
 <form id="statmap-visualize-form" autocomplete="off">
   <div class="form-group">
-    <label for="statmap-image">StatMap image</label>
+    <label for="statmap-image">
+      Image
+      <i class="far fa-question-circle" title="Image"
+        data-toggle="popover" data-container="body" data-trigger="hover"
+        data-custom-class="text-justify text-break"
+        data-content="Available images: <ul><li>Chi-squared statistical image for the test of the covariates different in the full and reduced model formulas.</li><li>Coefficient image (4d image) showing the estimated effects on the outcome/predictor scale.</li></ul>"
+      ></i>
+    </label>
     <select id="statmap-image" class="form-control" name="image">
-      <option data-name="stat" selected>stat</option>
-      <option data-name="coef">coef</option>
+      <option data-name="stat" selected>Chi-squared statistic</option>
+      <option data-name="coef">Coefficient</option>
     </select>
   </div>
 </form>
@@ -14,10 +21,24 @@
 </p>
 <form id="sei-form" class="mt-4">
   <fieldset class="d-flex flex-column form-group">
-    <legend>Cluster forming thresholds</legend>
+    <legend>
+      Cluster forming thresholds
+      <i class="far fa-question-circle" title="Cluster forming thresholds"
+        data-toggle="popover" data-container="body" data-trigger="hover"
+        data-custom-class="text-justify text-break"
+        data-content="This is the uncorrected threshold used to define spatially contiguous suprathreshold clusters. p-values for these clusters are then computed using the spatial extent or spatial mass of each cluster. Adjusted p-values are assigned based on the distribution of the maximum extent (or mass) cluster under the global null hypothesis that the parameter values for the covariates of interest are zero."
+      ></i>
+    </legend>
     <div class="d-flex flex-row">
       {{#cftTypeOptions}}
-        <div class="mr-4">Threshold type:</div>
+        <div class="mr-4">
+          Threshold type:
+          <i class="far fa-question-circle" title="Threshold type"
+            data-toggle="popover" data-container="body" data-trigger="hover"
+            data-custom-class="text-justify text-break"
+            data-content="The cluster forming threshold can be chosen to satisfy a robust effect size index (RESI; Vandekar & Stephens 2021) or p-value threshold."
+          ></i>
+        </div>
         <div class="form-check mr-4">
           <input class="form-check-input" type="radio" name="cftType" id="cft-type-s" value="s"{{#s}} checked{{/s}}>
           <label class="form-check-label" for="cft-type-s">Effect size</label>
@@ -42,7 +63,14 @@
   </fieldset>
 
   <div class="form-group">
-    <label for="sei-method">Method:</label>
+    <label for="sei-method">
+      Resampling method
+      <i class="far fa-question-circle" title="Resampling method"
+        data-toggle="popover" data-container="body" data-trigger="hover"
+        data-custom-class="text-justify text-break"
+        data-content="The type of resampling method to choose. Defaults to Wild T Rademacher bootstrap. Permutation is also highly effective. The permutation method is the Freedman-Lane procedure implemented in FSL's randomise (Winkler 2014)."
+      ></i>
+    </label>
     <select id="sei-method" class="form-control" name="method">
       {{#methodOptions}}
         <option{{#selected}} selected{{/selected}}>{{value}}</option>
@@ -51,13 +79,13 @@
   </div>
 
   <div class="form-group">
-    <label for="sei-nboot">Number of bootstrap samples to use</label>
+    <label for="sei-nboot">Number of bootstrap samples</label>
     <input id="sei-nboot" class="form-control" name="nboot" type="number"
            step="1" min="1" value="{{nboot}}">
   </div>
 
   <button id="sei-submit" type="submit" class="btn btn-primary active">
-    <span class="label">Perform SEI</span>
+    <span class="label">Resample</span>
     <span class="spinner spinner-border spinner-border-sm" role="status"></span>
     <span class="running">Running...</span>
   </button>

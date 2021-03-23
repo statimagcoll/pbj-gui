@@ -133,3 +133,8 @@ input.sei-cft-input {
 .papaya-container {
   padding: 0 calc((70vw - ((100vh - 10rem) * 1.5)) / 2);
 }
+
+.popover-body ul {
+  padding-inline-start: 0;
+  margin-left: 1em;
+}
