@@ -293,7 +293,7 @@ function initMain() {
   });
 
   // add initial model histograms
-  let modelVisForm = $('#model-visualize-form');
+  let modelVisForm = $('#model-vars-form');
   modelVisForm.find('input.toggle:checked').each(function() {
     let obj = $(this);
     addModelHist(obj.data('id'), obj.attr('name'));
@@ -308,14 +308,14 @@ function initMain() {
       img.fadeIn('fast');
 
       let all = modelVisForm.find('input.toggle:not(:checked)').length == 0;
-      $('#model-visualize-all').prop('checked', all);
+      $('#model-vars-show-all').prop('checked', all);
     } else {
       img.fadeOut('fast');
-      $('#model-visualize-all').prop('checked', false);
+      $('#model-vars-show-all').prop('checked', false);
     }
   });
 
-  $('#model-visualize-all').change(function(event) {
+  $('#model-vars-show-all').change(function(event) {
     let obj = $(this);
     if (obj.is(':checked')) {
       modelVisForm.find('input.toggle:not(:checked)').

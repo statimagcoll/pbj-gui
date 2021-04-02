@@ -1,12 +1,12 @@
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("webRoot", "painRoot", "studyRoot", "staticPaths", "routes",
+  fields = c("webRoot", "fileRoot", "studyRoot", "staticPaths", "routes",
              "token", "datasetExt", "niftiExt", "study"),
   methods = list(
     initialize = function(.study = NULL) {
       datasetExt <<- "\\.(csv|rds)$"
       niftiExt <<- "\\.nii(\\.gz)?$"
-      painRoot <<- file.path(find.package("pain21"), "pain21")
+      fileRoot <<- getwd()
 
       webRoot <<- file.path(find.package("pbjGUI"), "webroot")
       if (!dir.exists(webRoot)) {
@@ -711,7 +711,7 @@ App <- setRefClass(
     getTemplateVars = function() {
       result <- list(
         token = token,
-        painRoot = painRoot,
+        fileRoot = fileRoot,
         hasStatMap = (!is.null(study) && study$hasStatMap()),
         hasSEI = (!is.null(study) && study$hasSEI())
       )

@@ -243,13 +243,19 @@ PBJStudy <- setRefClass(
       lapply(names(data), function(name) {
         col <- data[[name]]
         num <- is.numeric(col)
+        na <- sum(is.na(col))
+        naPct <- round(na / length(col) * 100)
         list(
           id = gsub("[^a-zA-Z0-9_]", "_", name),
           name = name,
           type = class(col),
           num = num,
-          mean = if (num) mean(col) else NULL,
-          median = if (num) median(col) else NULL,
+          mean = if (num) round(mean(col, na.rm = TRUE), 3) else NULL,
+          median = if (num) round(median(col, na.rm = TRUE), 3) else NULL,
+          na = if (num) sum(is.na(col)) else NULL,
+          naPct = naPct,
+          naWarning = (naPct >= 33 && naPct < 66),
+          naError = (naPct >= 66),
           isWeightsColumn = (weightsColumn == name)
         )
       })

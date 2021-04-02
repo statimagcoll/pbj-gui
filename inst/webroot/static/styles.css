@@ -56,19 +56,19 @@ table.browse tbody tr.selected td {
   color: gray;
 }
 
-#model-visualize-form .table-wrapper {
+#model-vars-form .table-wrapper {
   max-height: 30vh;
   overflow-y: auto;
   position: relative;
 }
 
-#model-visualize-form table .name {
+#model-vars-form table .name {
   max-width: 10rem;
   text-overflow: ellipsis;
   overflow: hidden;
 }
 
-#model-visualize-form table thead th {
+#model-vars-form table thead th {
   position: -webkit-sticky;
   position: sticky;
   top: 0;

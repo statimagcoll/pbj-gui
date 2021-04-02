@@ -1,30 +1,45 @@
 {{#study}}
 <p class="border-bottom font-weight-bold">Histograms</p>
-<form id="model-visualize-form" autocomplete="off">
+<form id="model-vars-form" autocomplete="off">
   <div class="table-wrapper">
     <table class="table table-striped">
       <thead class="thead-light">
         <tr>
           <th scope="col">
-            <input id="model-visualize-all" type="checkbox" checked>
+            <input id="model-vars-show-all" type="checkbox" checked>
           </th>
           <th scope="col" class="name">Name</th>
           <th scope="col">Mean</th>
-          <th scope="col">Median</th></tr>
+          <th scope="col">Median</th>
+          <th scope="col">NAs</th>
+          <th scope="col">NA%</th>
+        </tr>
       </thead>
       <tbody>
         {{#varInfo}}{{#num}}
         <tr>
           <td>
-            <input id="model-visualize-show-{{id}}" class="toggle"
+            <input id="model-vars-show-{{id}}" class="toggle"
                    type="checkbox" data-id="{{id}}" name="{{name}}" checked>
           </td>
           <td class="name">
-            <!--<label for="model-visualize-show-{{id}}">{{name}}</label>-->
+            <!--<label for="model-vars-show-{{id}}">{{name}}</label>-->
             {{name}}
           </td>
           <td>{{mean}}</td>
           <td>{{median}}</td>
+          <td>
+            {{na}}
+          </td>
+          <td>
+            {{naPct}}%
+            {{#naWarning}}
+            <i class="fas fa-exclamation-triangle" style="color: #cccc00"></i>
+            {{/naWarning}}
+            {{#naError}}
+            <i class="fas fa-exclamation-circle" style="color: red"></i>
+            {{/naError}}
+          </td>
         </tr>
         {{/num}}{{/varInfo}}
       </tbody>
