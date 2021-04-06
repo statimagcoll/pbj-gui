@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap.min.css">
+
+    <!-- Papaya CSS -->
+    <link rel="stylesheet" href="/papaya/papaya.css">
+
+    <!-- Papaya CSS debug start -->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/base.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/ui/toolbar.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/ui/menu.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/ui/dialog.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/utilities/nojs.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/utilities/unsupported.css" />-->
+    <!--<link rel="stylesheet" type="text/css" href="/papaya-debug/src/css/viewer/viewer.css" />-->
+    <!-- Papaya CSS debug end -->
+
+    <!-- Fontawesome CSS -->
+    <link rel="stylesheet" href="/fontawesome/css/all.css">
+
+    <!-- PBJ CSS -->
+    <link rel="stylesheet" href="/styles.css">
+
+    <title>PBJ: Modern group level neuroimage analysis methods</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- welcome panel -->
+      <div id="welcome" class="container d-none">
+        <div class="row">
+          <div class="col mt-4">
+            <h3>
+              <img class="mr-2" src="/pbj-transparent.png"
+                   width="100" alt="PBJ logo">
+              PBJ: Modern group level neuroimage analysis methods
+            </h3>
+            <p style="font-size: larger">
+              Welcome to the PBJ graphical user interface (GUI)! PBJ is a suite
+              of tools to perform robust voxel-wise inference for medical imaging
+              data. In these analyses, the images are considered a multivariate
+              outcome variable and with one or multiple phenotypes as the
+              covariates. You can use this GUI to interactively run analyses,
+              visualize results, and produce reproducible batch scripts.
+            </p>
+            <p style="font-size: larger">
+              Please begin by selecting a dataset in <code>.csv</code> or
+              <code>.rds</code> format. Each row in the dataset should correspond
+              to one subject and contain at least one column "Image outcome"
+              pointing to the subject's NIFTI image that you would like to
+              analyze.
+            </p>
+
+            <form id="welcome-form" autocomplete="off">
+              <div class="form-group pb-2">
+                <label for="study-dataset">Dataset (CSV or RDS)</label>
+                <input id="study-dataset" class="form-control" name="dataset" type="text"
+                  readonly required placeholder="No file selected." />
+
+                <div id="study-dataset-columns" class="collapse mt-2" data-toggle="collapse">
+                  <div class="d-table-row">
+                    <div class="d-table-cell align-middle pr-2 pb-2">
+                      <label class="mb-0" for="study-dataset-outcome">Image Outcome Column:</label>
+                    </div>
+                    <div class="d-table-cell align-middle pr-2 pb-2">
+                      <input id="study-dataset-outcome" class="form-control" name="outcomeColumn"
+                        type="text" readonly required placeholder="None" />
+                    </div>
+                  </div>
+                </div>
+                <button class="browse btn btn-secondary mt-2" data-name="dataset"
+                  data-type="csv" type="button">Select</button>
+              </div>
+
+              <div class="form-group pb-2">
+                <label>Mask (NIFTI)</label>
+                <input id="study-mask" class="form-control" name="mask" type="text"
+                  readonly required placeholder="No file selected." />
+                <button class="browse btn btn-secondary mt-2" data-name="mask" data-type="nifti"
+                  type="button">Select</button>
+              </div>
+
+              <div class="form-group pb-2">
+                <label>Template (NIFTI)</label>
+                <input id="study-template" class="form-control" name="template" type="text"
+                  readonly required placeholder="No file selected." />
+                <button class="browse btn btn-secondary mt-2" data-name="template"
+                  data-type="nifti" type="button">Select</button>
+              </div>
+
+              <button id="study-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
+              <!--
+              or <button id="study-example" type="button" class="btn btn-success">Use example</button>
+              -->
+            </form>
+          </div>
+        </div>
+        <div id="browse-modal" class="modal" tabindex="-1" role="dialog">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title"></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div id="browse-error" class="d-none">
+                </div>
+                <nav class="navbar">
+                  <form class="form-inline flex-grow-1">
+                    <!-- FIXME: get rid of templating -->
+                    <button name="parent" type="button" class="btn btn-secondary mr-1"
+                      data-path="{{parent}}">
+                      <i class="fa fa-arrow-up"></i>
+                    </button>
+                    <input class="form-control flex-grow-1 mr-2" type="text" name="path" value="{{path}}" />
+                  </form>
+                </nav>
+                {{#empty}}
+                <p class="mt-3">
+                  <i class="fa fa-exclamation-triangle text-warning pr-2"></i>No matching files.
+                </p>
+                {{/empty}}
+                {{^empty}}
+                <div class="browse-wrapper">
+                  <table class="browse">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th class="w-100">Name</th>
+                        <th class="text-right">Size</th>
+                        <th class="text-right">Modified</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {{#files}}
+                      <tr class="{{type}}" data-path="{{path}}">
+                        <td><i class="fa fa-{{type}}"></i></td>
+                        <td class="w-100">{{name}}</td>
+                        <td class="text-right">{{^isdir}}{{size}}{{/isdir}}</td>
+                        <td class="text-right">{{mtime}}</td>
+                      </tr>
+                      {{/files}}
+                    </tbody>
+                  </table>
+                </div>
+                {{/empty}}
+              </div>
+              <div class="modal-footer">
+                <div class="text flex-grow-1"></div>
+                <button id="modal-cancel-button" type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button id="modal-select-button" type="button" class="btn btn-primary">Select</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- main panel -->
+      <div id="main" class="container-fluid d-none">
+        <nav class="navbar navbar-light bg-light mb-3">
+          <a class="navbar-brand" href="#">
+            <img src="/pbj-transparent.png" width="30" height="30" class="d-inline-block align-top" alt="">
+            Parametric Bootstrap Joint Testing Procedures for Neuroimaging
+          </a>
+          <ul class="navbar-nav mr-auto">
+            <li class="nav-item">
+              <a id="save-button" class="nav-link btn">Save Project</a>
+            </li>
+          </ul>
+        </nav>
+        <div class="row mt-4">
+          <div class="col-4">
+            <ul id="pbj-nav" class="nav nav-tabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="study-tab" data-toggle="tab" data-target="study" role="tab">Study</a>
+              </li>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link" id="model-tab" data-toggle="tab" data-target="model" role="tab">Model</a>
+              </li>
+              <li role="presentation" class="nav-item">
+                <a class="nav-link" id="statmap-tab" data-toggle="tab" data-target="statmap" role="tab">StatMap</a>
+              </li>
+              <li role="presentation" class="nav-item">
+                <a class="nav-link" id="sei-tab" data-toggle="tab" data-target="sei" role="tab">SEI</a>
+              </li>
+            </ul>
+
+            <div id="pbj-content" class="tab-content mt-2">
+              <!-- study tab content -->
+              <div class="tab-pane active" id="study" role="tabpanel">
+                <p class="border-bottom font-weight-bold">Dataset</p>
+                <p id="study-dataset-path"></p>
+
+                <form id="study-form" autocomplete="off">
+                  <div class="form-group">
+                    <label for="study-data-row" class="d-block border-bottom font-weight-bold mb-3">Subjects</label>
+                    <select id="study-data-row" class="form-control">
+                      <!--
+                        example option:
+
+                        <option value="1" selected
+                          data-template="/studyImage/template.nii.gz?token=abcdef
+                          data-outcome="/studyImage/outcome/1.nii.gz?token=abcdef
+                        >
+                          Pitt_0050003_alff.nii.gz
+                        </option>
+                      -->
+                    </select>
+                  </div>
+                </form>
+              </div>
+
+              <!-- model tab content -->
+              <div class="tab-pane" id="model" role="tabpanel">
+                <p class="border-bottom font-weight-bold mt-3">
+                  Model specification
+                </p>
+                <!--
+                <div class="help-dialog d-none">
+                  <h3>PBJ: Model Parameters</h3>
+                  <h4>Full model formula</h4>
+                  <p>
+                    PBJ uses the convention of specifying a full and reduced model, where the
+                    parameters of interest are the difference between the two models. The
+                    formulas are specified in R format. Variables that take character values
+                    are assumed to be factors.
+                  </p>
+                  <p>
+                    Example: A full formula "~ age + sex + motion", means that each voxel in
+                    the outcome image will be modeled linearly using age, sex, and motion. A
+                    reduced formula "~ sex + motion", means that the test statistic image will
+                    quantify the effect of age on the outcome image, controlling for the linear
+                    effect of sex and motion.
+                  </p>
+                  <p>
+                    Further information: The ns function can be used to specify natural cubic
+                    splines. For further details on model specification, see ?formula.
+                  </p>
+                </div>
+                -->
+                <form id="model-form" autocomplete="off">
+                  <div class="form-group">
+                    <label for="model-formfull">
+                      Full model formula
+                      <i class="far fa-question-circle" title="Full model formula"
+                        data-toggle="popover" data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="PBJ uses the convention of specifying a full and reduced model, where the parameters of interest are the difference between the two models. The formulas are specified in R format. Variables that take character values are assumed to be factors."
+                      ></i>
+                    </label>
+                    <input id="model-formfull" class="form-control" name="formfull" type="text" />
+                  </div>
+                  <div class="form-group">
+                    <label for="model-formred">Reduced model formula</label>
+                    <input id="model-formred" class="form-control" name="formred" type="text" />
+                  </div>
+                  <div class="form-group">
+                    <label for="model-transform">
+                      Transform
+                      <i class="far fa-question-circle" title="Transform"
+                        data-toggle="popover" data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="In small samples the test statistic images are not normally distributed. This method transforms the test statistics to be approximately normal using a T to Z transform or a transform based on Edgeworth expansions."
+                      ></i>
+                    </label>
+                    <select id="model-transform" class="form-control" name="transform">
+                      <option>none</option>
+                      <option>t</option>
+                      <option>edgeworth</option>
+                    </select>
+                  </div>
+                  <div class="form-group mb-0">
+                    <label for="model-weights-column">
+                      Weights
+                      <i class="far fa-question-circle" title="Weights"
+                        data-toggle="popover" data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="Regression weights can be used affect the relative influence of participants on the resulting analysis. For example, noisy participants can be down-weighted by setting the weights column proportional to the subjects motion for the scan session and checking the “inverse weights” box. Alternatively, if you have a column where large numbers indicate better image quality, then that can be selected as the weights and the “inverse weights” box should be unchecked. Theoretically, the best weights are those that are proportional to the inverse variance of the outcome image for each subject."
+                      ></i>
+                    </label>
+                    <select id="model-weights-column" class="form-control" name="weightsColumn">
+                      <option></option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    &boxur;
+                    <div class="form-check-inline">
+                      <input class="form-check-input" type="checkbox" name="invertedWeights" value="true" id="model-inverted-weights">
+                      <label class="form-check-label" for="model-inverted-weights">
+                        Inverse weights
+                        <i class="far fa-question-circle"
+                          title="Inverse weights" data-toggle="popover" data-container="body"
+                          data-trigger="hover" data-custom-class="text-justify text-break"
+                          data-content="This box is for convenience; if the selected weight column is associated with noisier observations, then you can check this box and PBJ will invert the weights prior to analysis."
+                        ></i>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="robust" value="true" id="model-robust">
+                    <label class="form-check-label" for="model-robust">
+                      Robust standard errors
+                      <i class="far fa-question-circle" title="Robust standard errors" data-toggle="popover"
+                        data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="Classical statistical analyses are subject to bias if the variances are unequal or exchangeability is violated. Using robust standard errors guarantees zero bias in large samples. A consequence of using robust standard errors is that test statistics have larger variance, so are a little noisier."
+                      ></i>
+                    </label>
+                  </div>
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="zeros" value="true" id="model-zeros">
+                    <label class="form-check-label" for="model-zeros">
+                      Exclude voxels with zeros
+                      <i class="far fa-question-circle"
+                        title="Exclude voxels with zeros" data-toggle="popover"
+                        data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="Oftentimes, numerically zero values in a subject’s outcome image indicates that those regions were outside of the FOV. Checking this box excludes all voxels where any subject has zero values from the analysis in addition to limiting analyses to the study mask region."
+                      ></i>
+                    </label>
+                  </div>
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="HC3" value="true" id="model-HC3">
+                    <label class="form-check-label" for="model-HC3">
+                      Use debiased residuals
+                      <i class="far fa-question-circle"
+                        title="Use debiased residuals" data-toggle="popover"
+                        data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="The residuals are used extensively in resampling methods. The squared residuals are biased for the error variance. Check this box (recommended) to use the HC3 adjustment for bias discussed by Long and Ervin (2000)."
+                      ></i>
+                    </label>
+                  </div>
+
+                  <button id="model-submit" type="submit" class="btn btn-primary active">
+                    <span class="label">Generate StatMap</span>
+                    <span class="spinner spinner-border spinner-border-sm" role="status"></span>
+                    <span class="running">Running...</span>
+                  </button>
+                  <pre id="statmap-log" class="d-none mt-3 mb-3">
+                  </pre>
+                </form>
+              </div>
+
+              <!-- statmap tab content -->
+              <div class="tab-pane" id="statmap" role="tabpanel">
+                <form id="statmap-visualize-form" autocomplete="off">
+                  <div class="form-group">
+                    <label for="statmap-image">
+                      Image
+                      <i class="far fa-question-circle" title="Image"
+                        data-toggle="popover" data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="Available images: <ul><li>Chi-squared statistical image for the test of the covariates different in the full and reduced model formulas.</li><li>Coefficient image (4d image) showing the estimated effects on the outcome/predictor scale.</li></ul>"
+                      ></i>
+                    </label>
+                    <select id="statmap-image" class="form-control" name="image">
+                      <option data-name="stat" selected>Chi-squared statistic</option>
+                      <option data-name="coef">Coefficient</option>
+                    </select>
+                  </div>
+                </form>
+
+                <p class="mt-4" style="border-bottom: 1px solid lightgray; font-weight: bold">
+                  Spacial extent inference (SEI)
+                </p>
+                <form id="sei-form" class="mt-4">
+                  <fieldset class="d-flex flex-column form-group">
+                    <legend>
+                      Cluster forming thresholds
+                      <i class="far fa-question-circle" title="Cluster forming thresholds"
+                        data-toggle="popover" data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="This is the uncorrected threshold used to define spatially contiguous suprathreshold clusters. p-values for these clusters are then computed using the spatial extent or spatial mass of each cluster. Adjusted p-values are assigned based on the distribution of the maximum extent (or mass) cluster under the global null hypothesis that the parameter values for the covariates of interest are zero."
+                      ></i>
+                    </legend>
+                    <div class="d-flex flex-row">
+                      <div class="mr-4">
+                        Threshold type:
+                        <i class="far fa-question-circle" title="Threshold type"
+                          data-toggle="popover" data-container="body" data-trigger="hover"
+                          data-custom-class="text-justify text-break"
+                          data-content="The cluster forming threshold can be chosen to satisfy a robust effect size index (RESI; Vandekar & Stephens 2021) or p-value threshold."
+                        ></i>
+                      </div>
+                      <div class="form-check mr-4">
+                        <input class="form-check-input" type="radio" name="cftType" id="cft-type-s" value="s">
+                        <label class="form-check-label" for="cft-type-s">Effect size</label>
+                      </div>
+                      <div class="form-check mr-4">
+                        <input class="form-check-input" type="radio" name="cftType" id="cft-type-p" value="p">
+                        <label class="form-check-label" for="cft-type-p">p-value</label>
+                      </div>
+                    </div>
+                    <div id="sei-cft-groups" class="d-flex flex-row flex-wrap">
+                      <template>
+                        <div class="d-flex flex-row align-items-center mr-3 mt-3 sei-cft-group">
+                          <input class="form-control sei-cft-input mr-1" name="cfts[]" type="number" step="0.01">
+                          <i class="fa fa-trash sei-cft-trash"></i>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="mt-3">
+                      <button id="sei-cft-add" class="btn btn-secondary"><i class="fa fa-plus"></i> Add</button>
+                    </div>
+                  </fieldset>
+
+                  <div class="form-group">
+                    <label for="sei-method">
+                      Resampling method
+                      <i class="far fa-question-circle" title="Resampling method"
+                        data-toggle="popover" data-container="body" data-trigger="hover"
+                        data-custom-class="text-justify text-break"
+                        data-content="The type of resampling method to choose. Defaults to Wild T Rademacher bootstrap. Permutation is also highly effective. The permutation method is the Freedman-Lane procedure implemented in FSL's randomise (Winkler 2014)."
+                      ></i>
+                    </label>
+                    <select id="sei-method" class="form-control" name="method">
+                      <option>t</option>
+                      <option>permutation</option>
+                      <option>conditional</option>
+                      <option>nonparametric</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="sei-nboot">Number of bootstrap samples</label>
+                    <input id="sei-nboot" class="form-control" name="nboot" type="number"
+                           step="1" min="1">
+                  </div>
+
+                  <button id="sei-submit" type="submit" class="btn btn-primary active">
+                    <span class="label">Resample</span>
+                    <span class="spinner spinner-border spinner-border-sm" role="status"></span>
+                    <span class="running">Running...</span>
+                  </button>
+                  <div id="sei-progress" class="d-none mt-3">
+                    <p></p>
+                    <div class="progress">
+                      <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                  </div>
+                </form>
+
+                <!--
+                <script type="text/javascript">
+                  {{#statMap}}
+                    statMapInfo = {
+                      {{#hasTemplate}}
+                        template: '/studyImage/template{{templateExt}}?token={{token}}',
+                      {{/hasTemplate}}
+                      stat: '/studyImage/statMapStat{{statExt}}?token={{token}}',
+                      coef: '/studyImage/statMapCoef{{coefExt}}?token={{token}}'
+                    };
+                  {{/statMap}}
+                </script>
+                -->
+              </div>
+
+              <!-- sei tab content -->
+              <div class="tab-pane" id="sei" role="tabpanel">
+                <form id="sei-cft-form" autocomplete="off">
+                  <div class="form-group">
+                    <label for="sei-cft">Cluster forming thresholds:</label>
+                    <select id="sei-cft" name="image">
+                      <!--
+                        option example:
+
+                        <option value="cft_s0_1" selected>cft.s0.1</option>
+                      -->
+                    </select>
+                  </div>
+                </form>
+
+                <!-- template for individual cft values -->
+                <template>
+                  <div class="sei-cft">
+                    <form autocomplete="off">
+                      <div class="form-group">
+                        <label>
+                          Image:
+                          <select class="sei-cft-image" name="image">
+                            <option selected>clustermap</option>
+                            <option>pmap</option>
+                          </select>
+                        </label>
+                      </div>
+                    </form>
+
+                    <div class="table-wrapper">
+                      <table class="table table-striped">
+                        <thead class="thead-light">
+                          <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">p-value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <!--
+                            row example
+
+                            <tr>
+                              <td>{{name}}</td>
+                              <td>{{size}}</td>
+                              <td>{{pvalue}}</td>
+                            </tr>
+                          -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <div id="visualize-study" class="col-8 visualize papaya-container">
+            <div id="visualize-study-papaya"></div>
+          </div>
+          <div id="visualize-model" class="col-8 visualize d-none">
+          </div>
+          <div id="visualize-statmap" class="col-8 visualize papaya-container d-none">
+            <div id="visualize-statmap-papaya"></div>
+          </div>
+          <div id="visualize-sei" class="col-8 visualize papaya-container d-none">
+            <div id="visualize-sei-papaya"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="/jquery.min.js"></script>
+    <script src="/popper.min.js"></script>
+    <script src="/bootstrap/js/bootstrap.js"></script>
+
+    <!-- Papaya JS -->
+    <script src="/papaya/papaya.js"></script>
+
+    <!-- Papaya JS debug start -->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/data/sample-image.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/data/talairach-atlas-image.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/data/talairach-atlas.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/lib/base64-binary.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/bowser.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/daikon.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/nifti-reader.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/numerics.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/pako-inflate.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/gl-matrix.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/gifti-reader.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/lib/GLU.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/constants.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/array-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/math-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/object-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/platform-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/string-utils.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/url-utils.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/core/coordinate.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/core/point.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/header.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagedata.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagedescription.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagedimensions.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagerange.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagetype.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/nifti/header-nifti.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/dicom/header-dicom.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/orientation.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/transform.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/volume.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/voxeldimensions.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/voxelvalue.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface-gifti.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface-mango.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface-vtk.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/dialog.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menu.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitem.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemcheckbox.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemradiobutton.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemfilechooser.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemrange.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemslider.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemspacer.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/toolbar.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/atlas.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/colortable.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/display.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/preferences.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/screenslice.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/screensurface.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/screenvol.js"></script>-->
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/viewer.js"></script>-->
+
+    <!--<script type="text/javascript" src="/papaya-debug/src/js/main.js"></script>-->
+    <!-- Papaya JS debug end -->
+    <!-- PBJ JS -->
+    <script src="/pbj-2.js"></script>
+  </body>
+</html>

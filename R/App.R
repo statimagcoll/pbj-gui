@@ -28,24 +28,24 @@ App <- setRefClass(
       }
 
       # setup static paths for httpuv
-      staticPaths <<- list(
-        "/static"  = httpuv::staticPath(file.path(webRoot, "static"),
-                                        indexhtml = TRUE, fallthrough = TRUE)
-      )
+      #staticPaths <<- list(
+        #"/" = httpuv::staticPath(webRoot, indexhtml = TRUE, fallthrough = TRUE)
+      #)
+      staticPaths <<- NULL
 
       # setup routes
       routes <<- list(
-        list(method = "GET", path = "^/$", handler = .self$getIndex),
-        list(method = "GET", path = "^/saveStudy$", handler = .self$saveStudy),
-        list(method = "POST", path = "^/browse$", handler = .self$browse),
-        list(method = "POST", path = "^/checkDataset$", handler = .self$checkDataset),
-        list(method = "POST", path = "^/createStudy$", handler = .self$createStudy),
-        list(method = "GET", path = "^/studyImage/", handler = .self$studyImage),
-        list(method = "GET", path = "^/hist$", handler = .self$plotHist),
-        list(method = "POST", path = "^/createStatMap$", handler = .self$createStatMap),
-        list(method = "GET", path = "^/statMap$", handler = .self$getStatMap),
-        list(method = "POST", path = "^/createSEI$", handler = .self$createSEI),
-        list(method = "GET", path = "^/sei$", handler = .self$getSEI)
+        list(method = "GET", path = "^/api/study$", handler = .self$getStudy),
+        list(method = "GET", path = "^/api/saveStudy$", handler = .self$saveStudy),
+        list(method = "POST", path = "^/api/browse$", handler = .self$browse),
+        list(method = "POST", path = "^/api/checkDataset$", handler = .self$checkDataset),
+        list(method = "POST", path = "^/api/createStudy$", handler = .self$createStudy),
+        list(method = "GET", path = "^/api/studyImage/", handler = .self$studyImage),
+        list(method = "GET", path = "^/api/hist$", handler = .self$plotHist),
+        list(method = "POST", path = "^/api/createStatMap$", handler = .self$createStatMap),
+        list(method = "GET", path = "^/api/statMap$", handler = .self$getStatMap),
+        list(method = "POST", path = "^/api/createSEI$", handler = .self$createSEI),
+        list(method = "GET", path = "^/api/sei$", handler = .self$getSEI)
       )
 
       # generate a random token for this session
@@ -55,23 +55,26 @@ App <- setRefClass(
     call = function(req) {
       method <- req$REQUEST_METHOD
       path <- req$PATH_INFO
-      cat("Method: ", method, " path: ", path, "\n", sep="")
+      cat("Method: ", method, " path: ", path, "\n", sep="", file=stderr())
       response <- NULL
 
-      # always check for token
-      query <- parseQuery(req)
-      if (is.null(query$token) || query$token != token) {
-        cat("Bad token\n")
-        response <- makeTextResponse('Invalid token', 401L)
-        return(response)
-      }
-
+      matched <- FALSE
       for (route in routes) {
         if (route$method == method && grepl(route$path, path)) {
-          cat("Path matched route pattern: ", route$path, "\n", sep="")
+          matched <- TRUE
+          cat("Path matched route pattern: ", route$path, "\n", sep="", file=stderr())
+
+          # check for token for non-static handlers
+          query <- parseQuery(req)
+          if (is.null(query$token) || query$token != token) {
+            cat("Bad token\n", file=stderr())
+            response <- makeTextResponse('Invalid token', 401L)
+            return(response)
+          }
+
           result <- try(route$handler(req, query))
           if (inherits(result, 'try-error')) {
-            print(result)
+            cat(capture.output(print(result)), file=stderr())
             result <- makeErrorResponse(list(error = as.character(result)))
           }
           response <- result
@@ -79,33 +82,47 @@ App <- setRefClass(
         }
       }
 
+      # look for static file
+      if (!matched) {
+        parts <- strsplit(path, "/")[[1]][-1]
+        if (length(parts) == 0) {
+          parts <- list(webRoot)
+        } else {
+          parts <- c(webRoot, as.list(parts))
+        }
+        candidate <- do.call(file.path, parts)
+        candidate <- try(normalizePath(candidate, mustWork=TRUE))
+        if (!inherits(candidate, "try-error")) {
+          # ensure candidate is in webRoot
+          if (startsWith(candidate, webRoot)) {
+            if (dir.exists(candidate)) {
+              # use index.html if candidate is a directory
+              candidate <- file.path(candidate, "index.html")
+            }
+            if (file.exists(candidate)) {
+              cat("Serving file:", candidate, "\n", file=stderr())
+              response <- makeFileResponse(candidate)
+            }
+          }
+        }
+      }
+
       if (is.null(response)) {
         # path didn't match (or handler returned NULL), return 404
-        cat("Path didn't match or handler returned NULL\n")
+        cat("Path didn't match or handler returned NULL\n", file=stderr())
         response <- makeTextResponse('Not found', 404L)
       }
 
       return(response)
     },
 
-    # handler for GET /
-    getIndex = function(req, query) {
-      # render the main template
-      vars <- getTemplateVars()
-      studyTemplate <- getTemplate("study.html")
-      modelTemplate <- getTemplate("model.html")
-      statMapTemplate <- getTemplate("statMap.html")
-      seiTemplate <- getTemplate("sei.html")
-
-      mainTemplate <- getTemplate("index.html")
-      partials <- list(studyTab = studyTemplate, modelTab = modelTemplate,
-                       statMapTab = statMapTemplate, seiTab = seiTemplate)
-      body <- whisker::whisker.render(mainTemplate, data = vars,
-                                      partials = partials)
-
-      # setup the response
-      response <- makeHTMLResponse(body)
-      return(response)
+    # handler for GET /api/study
+    getStudy = function(req, query) {
+      if (is.null(study)) {
+        response <- makeJSONResponse(list(fileRoot = fileRoot, study = NULL), unbox = TRUE)
+        return(response)
+      } else {
+      }
     },
 
     # handler for GET /saveStudy
@@ -156,22 +173,18 @@ App <- setRefClass(
       files$name <- basename(files$path)
       files <- files[grepl(ext, files$name, ignore.case = TRUE) | files$isdir,]
       files$type <- ifelse(files$isdir, "folder", "file")
-      files <- files[order(!files$isdir, files$name),]
+      files <- files[order(!files$isdir, files$name), c("name", "size", "mtime")]
+      row.names(files) <- 1:nrow(files)
 
-      browseTemplate <- getTemplate("browse.html")
-      vars <- list(
+      data <- list(
         path = path,
         parent = normalizePath(file.path(path, '..')),
-        files = whisker::rowSplit(files),
-        empty = (nrow(files) == 0)
-      )
-      data <- list(
-        html = unbox(whisker::whisker.render(browseTemplate, data = vars)),
+        files = files,
         glob = glob
       )
 
       # setup the response
-      response <- makeJSONResponse(data)
+      response <- makeJSONResponse(data, unbox = TRUE)
       return(response)
     },
 
@@ -652,7 +665,7 @@ App <- setRefClass(
 
       result <- try(study$startSEIJob())
       if (inherits(result, 'try-error')) {
-        print(result)
+        cat(capture.output(print(result)), file=stderr())
         return(makeErrorResponse(list(error = as.character(result))))
       }
 
@@ -837,7 +850,10 @@ App <- setRefClass(
       return(makeFileResponse(filename, status = status, contentDisposition = cd))
     },
 
-    makeFileResponse = function(filename, contentType = "application/octet-stream", status = 200L, contentDisposition = "inline") {
+    makeFileResponse = function(filename, contentType = NULL, status = 200L, contentDisposition = "inline") {
+      if (is.null(contentType)) {
+        contentType <- mime::guess_type(filename)
+      }
       response <- list(
         status = status,
         headers = list(
@@ -852,7 +868,7 @@ App <- setRefClass(
     makeJSONResponse = function(data, status = 200L, unbox = FALSE) {
       response <- list(
         status = status, headers = list("Content-Type" = "application/json"),
-        body = jsonlite::toJSON(data, auto_unbox = unbox)
+        body = jsonlite::toJSON(data, null = "null", auto_unbox = unbox)
       )
       return(response)
     },
@@ -864,7 +880,7 @@ App <- setRefClass(
       }, silent = TRUE)
 
       if (inherits(result, "try-error")) {
-        print(result)
+        cat(capture.output(print(result)), file=stderr())
         response <- makeErrorResponse(list(error = "invalid JSON"))
         return(response)
       }

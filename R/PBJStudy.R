@@ -261,12 +261,6 @@ PBJStudy <- setRefClass(
       })
     },
 
-    getTransformOptions = function() {
-      lapply(c("none", "t", "edgeworth"), function(opt) {
-        list(value = opt, selected = (transform == opt))
-      })
-    },
-
     isVarNumeric = function(name) {
       is.numeric(data[[name]])
     },
