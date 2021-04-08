@@ -114,21 +114,16 @@
                 </div>
                 <nav class="navbar">
                   <form class="form-inline flex-grow-1">
-                    <!-- FIXME: get rid of templating -->
-                    <button name="parent" type="button" class="btn btn-secondary mr-1"
-                      data-path="{{parent}}">
+                    <button id="browse-parent" type="button" class="btn btn-secondary mr-1">
                       <i class="fa fa-arrow-up"></i>
                     </button>
-                    <input class="form-control flex-grow-1 mr-2" type="text" name="path" value="{{path}}" />
+                    <input id="browse-input" class="form-control flex-grow-1 mr-2" type="text" name="path" />
                   </form>
                 </nav>
-                {{#empty}}
-                <p class="mt-3">
+                <p id="browse-empty" class="mt-3 d-none">
                   <i class="fa fa-exclamation-triangle text-warning pr-2"></i>No matching files.
                 </p>
-                {{/empty}}
-                {{^empty}}
-                <div class="browse-wrapper">
+                <div id="browse-files" class="browse-wrapper d-none">
                   <table class="browse">
                     <thead>
                       <tr>
@@ -139,23 +134,74 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {{#files}}
-                      <tr class="{{type}}" data-path="{{path}}">
-                        <td><i class="fa fa-{{type}}"></i></td>
-                        <td class="w-100">{{name}}</td>
-                        <td class="text-right">{{^isdir}}{{size}}{{/isdir}}</td>
-                        <td class="text-right">{{mtime}}</td>
-                      </tr>
-                      {{/files}}
                     </tbody>
                   </table>
+                  <template id="browse-file-row">
+                    <tr>
+                      <td><i class="fa fa-{{type}}"></i></td>
+                      <td class="w-100">{{name}}</td>
+                      <td class="text-right">{{^isdir}}{{size}}{{/isdir}}</td>
+                      <td class="text-right">{{mtime}}</td>
+                    </tr>
+                  </template>
                 </div>
-                {{/empty}}
               </div>
               <div class="modal-footer">
                 <div class="text flex-grow-1"></div>
-                <button id="modal-cancel-button" type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button id="modal-select-button" type="button" class="btn btn-primary">Select</button>
+                <button id="browse-cancel-button" type="button" class="btn btn-secondary">Cancel</button>
+                <button id="browse-select-button" type="button" class="btn btn-primary">Select</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="check-dataset-modal" class="modal" tabindex="-1" role="dialog">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Assign dataset columns</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <p><strong>Dataset path</strong>: <span id="check-dataset-path"></p>
+
+                <p>
+                  The following columns have been identified as containing file paths for NIFTI
+                  images. Please associate a column with an image type.
+                </p>
+
+                <form>
+                </form>
+
+                <template id="check-dataset-column">
+                  <div class="form-check">
+                    <input type="radio" class="form-check-input" name="outcome">
+                    <label class="form-check-label">
+                      Column: <span class="column-name font-weight-bold"></span>
+                    </label>
+                    <p class="mt-2 mb-2">
+                      <!-- FIXME: remove templating -->
+                      <a data-toggle="collapse" href="#column-{{name}}-data">
+                        Show/hide data
+                      </a>
+                    </p>
+                    <div id="column-{{name}}-data" class="collapse" style="overflow: auto; max-height: 150px; border: 1px dashed gray">
+                      <ul>
+                        <!--
+                        {{#values}}
+                        <li>{{.}}</li>
+                        {{/values}}
+                        -->
+                      </ul>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div class="modal-footer">
+                <div class="text flex-grow-1"></div>
+                <button id="check-dataset-cancel-button" type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button id="check-dataset-select-button" type="button" class="btn btn-primary">Select</button>
               </div>
             </div>
           </div>

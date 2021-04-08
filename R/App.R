@@ -172,8 +172,7 @@ App <- setRefClass(
       files$path <- row.names(files)
       files$name <- basename(files$path)
       files <- files[grepl(ext, files$name, ignore.case = TRUE) | files$isdir,]
-      files$type <- ifelse(files$isdir, "folder", "file")
-      files <- files[order(!files$isdir, files$name), c("name", "size", "mtime")]
+      files <- files[order(!files$isdir, files$name), c("name", "size", "mtime", "isdir", "path")]
       row.names(files) <- 1:nrow(files)
 
       data <- list(
@@ -234,17 +233,13 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      template <- getTemplate("checkDataset.html")
-      vars <- list(
+      data <- list(
         path = path,
         columns = lapply(columns, function(name) {
           list(name = name, values = dataset[[name]])
         })
       )
-      html <- whisker::whisker.render(template, data = vars)
-
-      # setup the response
-      response <- makeHTMLResponse(html)
+      response <- makeJSONResponse(data, unbox = TRUE)
       return(response)
     },
 

@@ -16,6 +16,11 @@ class API {
     this.request('POST', 'browse', data, success, failure);
   }
 
+  checkDataset(path, success, failure) {
+    let data = { path: path };
+    this.request('POST', 'checkDataset', data, success, failure);
+  }
+
   request(method, action, data, success, failure) {
     let windowUrl = new URL(window.location.href);
     let url = new URL(`/api/${action}`, windowUrl);
@@ -61,23 +66,268 @@ class Component {
   }
 }
 
-class BrowseComponent extends Component {
+class Dialog extends Component {
+  show() {
+    $(this.root).modal('show');
+  }
+
+  hide() {
+    $(this.root).modal('hide');
+  }
+}
+
+class BrowseComponent extends Dialog {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    // setup parent button event
+    let parentButton = root.querySelector('#browse-parent');
+    parentButton.addEventListener('click', event => {
+      event.preventDefault();
+      this.browseParent();
+    });
+
+    // set up cancel button
+    let cancelButton = root.querySelector('#browse-cancel-button');
+    cancelButton.addEventListener('click', event => {
+      event.preventDefault();
+      this.hide();
+    });
+
+    // set up select button
+    this.selectButton = root.querySelector('#browse-select-button');
+    this.selectButton.addEventListener('click', event => {
+      event.preventDefault();
+      let selectedRow = this.root.querySelector('tr.selected');
+      this.chooseRow(selectedRow);
+    });
+  }
+
+  setName(name) {
+    this.name = name;
+
+    // set title
+    let title = this.root.querySelector('.modal-title');
+    title.textContent = `Select ${name}`;
+  }
+
+  setParent(parent) {
+    this.parent = parent;
+  }
+
+  setGlob(glob) {
+    // set footer
+    let footer = this.root.querySelector('.modal-footer .text');
+    footer.textContent = `File pattern: ${glob}`;
+  }
+
+  setType(type) {
+    this.type = type;
+  }
+
+  setPath(path) {
+    this.path = path;
+    this.root.querySelector('#browse-input').value = path;
+  }
+
+  setFiles(files) {
+    let emptyElt = this.root.querySelector('#browse-empty');
+    let filesElt = this.root.querySelector('#browse-files');
+    let tbodyElt = filesElt.querySelector('table tbody');
+
+    // clear any existing rows
+    tbodyElt.innerHTML = '';
+
+    if (files.length == 0) {
+      $(emptyElt).removeClass('d-none');
+      $(filesElt).addClass('d-none');
+    } else {
+      $(emptyElt).addClass('d-none');
+
+      let template = this.root.querySelector('template#browse-file-row');
+      for (let file of files) {
+        let frag = template.content.cloneNode(true);
+        let row = frag.querySelector('tr');
+        row.dataset.type = file.isdir ? 'folder' : 'file';
+        row.dataset.path = file.path;
+
+        let cells = frag.querySelectorAll('td');
+        cells[0].querySelector('i').setAttribute('class', `fa fa-${row.dataset.type}`);
+        cells[1].textContent = file.name;
+        cells[2].textContent = file.isdir ? file.size : '';
+        cells[3].textContent = file.mtime;
+        cells.forEach(cell => {
+          cell.addEventListener('click', event => {
+            event.preventDefault();
+            this.selectRow(row);
+          });
+          cell.addEventListener('dblclick', event => {
+            event.preventDefault();
+            this.chooseRow(row);
+          });
+        })
+        tbodyElt.append(frag);
+      }
+
+      $(filesElt).removeClass('d-none');
+    }
+  }
+
+  setCallback(callback) {
+    this.callback = callback;
+  }
+
+  selectRow(row) {
+    let selectedRow = row.parentNode.querySelector('tr.selected');
+    $(selectedRow).removeClass('selected');
+    if (selectedRow != row) {
+      $(row).addClass('selected');
+      this.selectButton.removeAttribute('disabled');
+    } else {
+      this.selectButton.setAttribute('disabled', '');
+    }
+  }
+
+  chooseRow(row) {
+    if (row.dataset.type == 'folder') {
+      this.browse(row.dataset.path);
+    } else if (typeof(callback) === 'function') {
+      this.callback(row.dataset.path, this.path);
+      this.hide();
+    }
+  }
+
+  browseParent() {
+    if (typeof(this.parent) !== 'string') {
+      throw new Error('parent is not set!');
+    }
+    this.browse(this.parent);
+  }
+
+  browse(path) {
+    let warning = this.root.querySelector('form i.fa-exclamation-triangle');
+    if (warning) {
+      warning.remove();
+    }
+
+    this.api.browse(this.type, path,
+      // success
+      data => {
+        this.setGlob(data.glob);
+        this.setParent(data.parent);
+        this.setPath(data.path);
+        this.setFiles(data.files);
+        this.show();
+        this.selectButton.setAttribute('disabled', '');
+      },
+      // failure
+      () => {
+        let form = this.root.querySelector('form');
+        form.insertAdjacentHTML('beforeend', '<i class="fa fa-exclamation-triangle text-danger"></i>');
+      }
+    );
+  }
+}
+
+class CheckDatasetComponent extends Dialog {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    // set up select button
+    this.selectButton = this.root.querySelector('#check-dataset-select-button');
+    this.selectButton.addEventListener('click', event => {
+    });
+  }
+
+  setPath(path) {
+    this.path = path;
+    this.root.querySelector('#check-dataset-path').textContent = path;
+  }
+
+  setColumns(columns) {
+    let formElt = this.root.querySelector('form');
+    formElt.innerHTML = '';
+
+    let template = this.root.querySelector('template#check-dataset-column');
+    for (let column of columns) {
+      let frag = template.content.cloneNode(true);
+
+      let input = frag.querySelector('input');
+      let inputId = `check-dataset-column-${column.name}`;
+      input.setAttribute('id', inputId);
+      input.value = column.name
+
+      let label = frag.querySelector('label');
+      label.setAttribute('for', inputId);
+
+      let span = frag.querySelector('span.column-name');
+      span.textContent = column.name;
+    }
+  }
+
+  checkDataset(path) {
+    this.selectButton.setAttribute('disabled', '');
+
+    this.api.checkDataset(path,
+      // success
+      data => {
+        this.setPath(data.path);
+        this.setColumns(data.columns);
+
+        // Replace the content
+        modal.find('.modal-body').html(html);
+        modal.modal('show');
+
+        modal.find('form input').change(function(event) {
+          let set = modal.find('form input:checked');
+          selectButton.prop('disabled', set.length != 1);
+        });
+
+        selectButton.click(function(event) {
+          event.preventDefault();
+          setFile('dataset', modal.find('form').data('path'));
+          modal.find('input:checked').each(function(index) {
+            let obj = $(this);
+            let name = obj.attr('name');
+            let value = obj.val();
+            $('#study-dataset-' + name).val(value);
+          });
+          $('#study-dataset-columns').collapse('show');
+          modal.modal('hide');
+        });
+      },
+      // failure
+      () => {
+        /*
+        let content = '<pre>' + xhr.responseText + '</pre>';
+        modal.find('#browse-error').html(content).removeClass('d-none');
+        */
+      }
+    );
+  }
 }
 
 class WelcomeComponent extends Component {
   constructor(root, api) {
     super(root);
     this.api = api;
-    this.browseComponent = new BrowseComponent(this.root.querySelector('#browse-modal'));
+    this.browseComponent = new BrowseComponent(
+      this.root.querySelector('#browse-modal'), api);
+    this.checkDatasetComponent = new CheckDatasetComponent(
+      this.root.querySelector('#check-dataset-modal'), api);
     this.setup();
   }
 
   setup() {
     let welcomeForm = this.root.querySelector('#welcome-form');
-    let browseButton = welcomeForm.querySelector('button.browse');
-    browseButton.addEventListener('click', event => {
-      event.preventDefault();
-      this.browse(browseButton.dataset.name, browseButton.dataset.type);
+    let browseButtons = welcomeForm.querySelectorAll('button.browse');
+    browseButtons.forEach(button => {
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        this.browse(button.dataset.name, button.dataset.type);
+      });
     });
 
     welcomeForm.addEventListener('submit', event => {
@@ -113,80 +363,43 @@ class WelcomeComponent extends Component {
     if (typeof(this.browsePath) !== 'string') {
       throw new Error('browsePath has not been set!');
     }
+    let callback;
+    switch (button.dataset.name) {
+      case 'dataset':
+        callback = this.checkDataset;
+        break;
+      case 'mask':
+        callback = this.setMaskPath;
+        break;
+      case 'template':
+        callback = this.setTemplatePath;
+        break;
+    }
 
-    let path = this.browsePath;
-    this.api.browse(type, path,
-      // success
-      (data) => {
-        console.log('browse result:', data);
-        /*
-        modal.find('.modal-title').text('Select ' + name);
-        modal.find('.modal-footer .text').text('File pattern: ' + data.glob);
+    let modal = this.browseComponent;
 
-        // Replace the content
-        modal.find('.modal-body').html(data.html);
+    modal.setName(name);
+    modal.setType(type);
+    modal.setCallback(callback);
+    modal.browse(this.browsePath);
+  }
 
-        let table = modal.find('table.browse');
-        table.find('tbody tr.file td').click(function(event) {
-          let obj = $(event.target).parent();
-          obj.siblings('.selected').removeClass('selected');
-          obj.toggleClass('selected');
-          selectButton.prop('disabled', table.find('tr.selected').length == 0);
-        });
-        table.find('tbody tr.folder td').dblclick(function(event) {
-          let obj = $(event.target).parent();
-          obj.addClass('focused');
-          browse(name, type, obj.data('path'));
-        });
-        selectButton.prop('disabled', table.find('tr.selected').length == 0);
+  checkDataset(path, parentPath) {
+    this.setBrowsePath(parentPath);
 
-        // Select file if user clicks on select button
-        selectButton.on('click', function(event) {
-          event.preventDefault();
-          let selectedPath = table.find('tr.selected').data('path');
-          if (name == 'dataset') {
-            checkDataset(selectedPath);
-          } else {
-            setFile(name, selectedPath);
-            modal.modal('hide');
-          }
-        });
+    let modal = this.checkDatasetComponent;
+    modal.checkDataset(path);
+  }
 
-        // Select file if user double clicks on a file row
-        table.find('tbody tr.file td').dblclick(function(event) {
-          let obj = $(event.target).parent();
-          let selectedPath = obj.data('path');
-          if (name == 'dataset') {
-            checkDataset(selectedPath);
-          } else {
-            setFile(name, selectedPath);
-            modal.modal('hide');
-          }
-        });
+  setDatasetPath(path, parentPath) {
+  }
 
-        modal.find('button[name="parent"]').click(function(event) {
-          event.preventDefault();
-          let path = $(this).data('path');
-          browse(name, type, path);
-        });
+  setMaskPath(path, parentPath) {
+    this.setBrowsePath(parentPath);
+  }
 
-        modal.find('form').submit(function(event) {
-          event.preventDefault();
-          let obj = $(event.target);
-          let newPath = obj.find('input[name="path"]').val();
-          browse(name, type, newPath);
-        });
-
-        modal.modal('show')
-        */
-      },
-      // failure
-      () => {
-        /*
-        $('#modal').find('form').append('<i class="fa fa-exclamation-triangle text-danger"></i>');
-        */
-      }
-    );
+  setTemplatePath(path, parentPath) {
+    this.setBrowsePath(parentPath);
   }
 }
 
