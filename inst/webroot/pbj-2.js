@@ -3,37 +3,41 @@ class API {
     this.token = token;
   }
 
-  getStudy(success, failure) {
-    this.request('GET', 'study', null, success, failure);
+  getFileRoot(complete, failure) {
+    this.request('GET', 'fileRoot', null, complete, failure);
   }
 
-  createStudy(data, success, failure) {
-    this.request('POST', 'createStudy', data, success, failure);
+  getStudy(complete, failure) {
+    this.request('GET', 'study', null, complete, failure);
   }
 
-  browse(type, path, success, failure) {
+  createStudy(data, complete, failure) {
+    this.request('POST', 'createStudy', data, complete, failure);
+  }
+
+  browse(type, path, complete, failure) {
     let data = { type: type, path: path };
-    this.request('POST', 'browse', data, success, failure);
+    this.request('POST', 'browse', data, complete, failure);
   }
 
-  checkDataset(path, success, failure) {
+  checkDataset(path, complete, failure) {
     let data = { path: path };
-    this.request('POST', 'checkDataset', data, success, failure);
+    this.request('POST', 'checkDataset', data, complete, failure);
   }
 
-  request(method, action, data, success, failure) {
+  request(method, action, data, complete, failure) {
     let windowUrl = new URL(window.location.href);
     let url = new URL(`/api/${action}`, windowUrl);
     url.searchParams.append('token', this.token);
 
     let xhr = new XMLHttpRequest();
-    if (success) {
+    if (complete) {
       xhr.addEventListener('load', (event) => {
         let result = xhr.responseText;
         if (xhr.getResponseHeader('Content-Type') == 'application/json') {
           result = JSON.parse(result);
         }
-        success(result);
+        complete(result, xhr.status);
       });
     }
     xhr.addEventListener('error', (event) => {
@@ -52,8 +56,9 @@ class API {
   }
 }
 
-class Component {
+class Component extends EventTarget {
   constructor(root) {
+    super();
     this.root = root;
   }
 
@@ -160,11 +165,11 @@ class BrowseComponent extends Dialog {
         cells.forEach(cell => {
           cell.addEventListener('click', event => {
             event.preventDefault();
-            this.selectRow(row);
-          });
-          cell.addEventListener('dblclick', event => {
-            event.preventDefault();
-            this.chooseRow(row);
+            if (event.detail == 1) {
+              this.selectRow(row);
+            } else if (event.detail == 2) {
+              this.chooseRow(row);
+            }
           });
         })
         tbodyElt.append(frag);
@@ -174,11 +179,8 @@ class BrowseComponent extends Dialog {
     }
   }
 
-  setCallback(callback) {
-    this.callback = callback;
-  }
-
   selectRow(row) {
+    console.log('select row:', row);
     let selectedRow = row.parentNode.querySelector('tr.selected');
     $(selectedRow).removeClass('selected');
     if (selectedRow != row) {
@@ -190,10 +192,14 @@ class BrowseComponent extends Dialog {
   }
 
   chooseRow(row) {
+    console.log('choose row:', row);
     if (row.dataset.type == 'folder') {
       this.browse(row.dataset.path);
-    } else if (typeof(callback) === 'function') {
-      this.callback(row.dataset.path, this.path);
+    } else {
+      let event = new CustomEvent('chooseFile', {
+        detail: { path: row.dataset.path, parent: this.path }
+      });
+      this.dispatchEvent(event);
       this.hide();
     }
   }
@@ -212,7 +218,7 @@ class BrowseComponent extends Dialog {
     }
 
     this.api.browse(this.type, path,
-      // success
+      // request completed
       data => {
         this.setGlob(data.glob);
         this.setParent(data.parent);
@@ -221,7 +227,7 @@ class BrowseComponent extends Dialog {
         this.show();
         this.selectButton.setAttribute('disabled', '');
       },
-      // failure
+      // request failed
       () => {
         let form = this.root.querySelector('form');
         form.insertAdjacentHTML('beforeend', '<i class="fa fa-exclamation-triangle text-danger"></i>');
@@ -235,9 +241,22 @@ class CheckDatasetComponent extends Dialog {
     super(root);
     this.api = api;
 
+    this.form = this.root.querySelector('form');
+
     // set up select button
     this.selectButton = this.root.querySelector('#check-dataset-select-button');
-    this.selectButton.addEventListener('click', event => {
+    this.selectButton.addEventListener('click', clickEvent => {
+      clickEvent.preventDefault();
+
+      let fd = new FormData(this.form);
+      let event = new CustomEvent('datasetChecked', {
+        detail: {
+          path: this.path,
+          outcomeColumn: fd.get('outcome')
+        }
+      });
+      this.dispatchEvent(event);
+      this.hide();
     });
   }
 
@@ -247,8 +266,7 @@ class CheckDatasetComponent extends Dialog {
   }
 
   setColumns(columns) {
-    let formElt = this.root.querySelector('form');
-    formElt.innerHTML = '';
+    this.form.innerHTML = '';
 
     let template = this.root.querySelector('template#check-dataset-column');
     for (let column of columns) {
@@ -258,12 +276,36 @@ class CheckDatasetComponent extends Dialog {
       let inputId = `check-dataset-column-${column.name}`;
       input.setAttribute('id', inputId);
       input.value = column.name
+      input.addEventListener('change', event => {
+        this.selectButton.removeAttribute('disabled');
+      });
 
       let label = frag.querySelector('label');
       label.setAttribute('for', inputId);
 
       let span = frag.querySelector('span.column-name');
       span.textContent = column.name;
+
+      let link = frag.querySelector('a');
+      let dataEltId = `check-dataset-column-${column.name}-data`;
+      link.setAttribute('href', '#' + dataEltId);
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        let div = this.root.querySelector(event.target.getAttribute('href'));
+        $(div).toggleClass('d-none');
+      });
+
+      let div = frag.querySelector('div.column-data');
+      div.setAttribute('id', dataEltId);
+
+      let ul = div.querySelector('ul');
+      for (let value of column.values) {
+        let li = document.createElement('li');
+        li.textContent = value;
+        ul.appendChild(li);
+      }
+
+      this.form.appendChild(frag);
     }
   }
 
@@ -271,34 +313,13 @@ class CheckDatasetComponent extends Dialog {
     this.selectButton.setAttribute('disabled', '');
 
     this.api.checkDataset(path,
-      // success
+      // request completed
       data => {
         this.setPath(data.path);
         this.setColumns(data.columns);
-
-        // Replace the content
-        modal.find('.modal-body').html(html);
-        modal.modal('show');
-
-        modal.find('form input').change(function(event) {
-          let set = modal.find('form input:checked');
-          selectButton.prop('disabled', set.length != 1);
-        });
-
-        selectButton.click(function(event) {
-          event.preventDefault();
-          setFile('dataset', modal.find('form').data('path'));
-          modal.find('input:checked').each(function(index) {
-            let obj = $(this);
-            let name = obj.attr('name');
-            let value = obj.val();
-            $('#study-dataset-' + name).val(value);
-          });
-          $('#study-dataset-columns').collapse('show');
-          modal.modal('hide');
-        });
+        this.show();
       },
-      // failure
+      // request failed
       () => {
         /*
         let content = '<pre>' + xhr.responseText + '</pre>';
@@ -313,16 +334,20 @@ class WelcomeComponent extends Component {
   constructor(root, api) {
     super(root);
     this.api = api;
+
     this.browseComponent = new BrowseComponent(
       this.root.querySelector('#browse-modal'), api);
     this.checkDatasetComponent = new CheckDatasetComponent(
       this.root.querySelector('#check-dataset-modal'), api);
+
+    this.welcomeForm = this.root.querySelector('#welcome-form');
+    this.submitButton = this.welcomeForm.querySelector('#study-submit');
+
     this.setup();
   }
 
   setup() {
-    let welcomeForm = this.root.querySelector('#welcome-form');
-    let browseButtons = welcomeForm.querySelectorAll('button.browse');
+    let browseButtons = this.welcomeForm.querySelectorAll('button.browse');
     browseButtons.forEach(button => {
       button.addEventListener('click', event => {
         event.preventDefault();
@@ -330,13 +355,14 @@ class WelcomeComponent extends Component {
       });
     });
 
-    welcomeForm.addEventListener('submit', event => {
+    this.welcomeForm.addEventListener('submit', event => {
       event.preventDefault();
 
       let data = {};
-      welcomeForm.querySelectorAll('input').forEach(elt => {
-        data[elt.getAttribute('name')] = elt.value;
-      });
+      let fd = new FormData(this.welcomeForm);
+      for (let pair of fd) {
+        data[pair[0]] = pair[1];
+      }
 
       this.api.createStudy(data, (result) => {
         console.log('createStudy result:', result);
@@ -364,7 +390,7 @@ class WelcomeComponent extends Component {
       throw new Error('browsePath has not been set!');
     }
     let callback;
-    switch (button.dataset.name) {
+    switch (name) {
       case 'dataset':
         callback = this.checkDataset;
         break;
@@ -377,10 +403,20 @@ class WelcomeComponent extends Component {
     }
 
     let modal = this.browseComponent;
-
     modal.setName(name);
     modal.setType(type);
-    modal.setCallback(callback);
+
+    // remove old listener
+    if (this.chooseFileListener !== undefined) {
+      modal.removeEventListener('chooseFile', this.chooseFileListener);
+    }
+
+    this.chooseFileListener = (event) => {
+      callback.call(this, event.detail.path, event.detail.parent);
+      this.checkForm();
+    };
+    modal.addEventListener('chooseFile', this.chooseFileListener);
+
     modal.browse(this.browsePath);
   }
 
@@ -388,22 +424,45 @@ class WelcomeComponent extends Component {
     this.setBrowsePath(parentPath);
 
     let modal = this.checkDatasetComponent;
+    modal.addEventListener('datasetChecked', event => {
+      this.setDataset(event.detail.path, event.detail.outcomeColumn);
+    }, { once: true });
     modal.checkDataset(path);
   }
 
-  setDatasetPath(path, parentPath) {
+  setDataset(path, outcomeColumn) {
+    this.root.querySelector('#study-dataset').value = path;
+    this.root.querySelector('#study-dataset-outcome').value = outcomeColumn;
+    $(this.root.querySelector('#study-dataset-columns')).removeClass('d-none');
   }
 
   setMaskPath(path, parentPath) {
     this.setBrowsePath(parentPath);
+    this.root.querySelector('#study-mask').value = path;
   }
 
   setTemplatePath(path, parentPath) {
     this.setBrowsePath(parentPath);
+    this.root.querySelector('#study-template').value = path;
+  }
+
+  checkForm() {
+    if (this.welcomeForm.checkValidity()) {
+      this.submitButton.removeAttribute('disabled');
+    } else {
+      this.submitButton.setAttribute('disabled', '');
+    }
   }
 }
 
-class StudyComponent extends Component {
+class ModelComponent extends Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+  }
+
+  setStudy(study) {
+  }
 }
 
 class MainComponent extends Component {
@@ -433,16 +492,18 @@ class AppComponent extends Component {
 
   setup() {
     this.api.getStudy(
-      // success
-      data => {
-        if (data.study === null) {
-          this.welcomeComponent.setBrowsePath(data.fileRoot);
-          this.welcomeComponent.show();
-        } else {
+      // request completed
+      (data, status) => {
+        if (status == 200) {
           //initStudy(token, data.study);
+        } else {
+          this.welcomeComponent.show();
+          this.api.getFileRoot(data => {
+            this.welcomeComponent.setBrowsePath(data.fileRoot);
+          });
         }
       },
-      // failure
+      // request failed
       () => {
       }
     );

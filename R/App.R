@@ -35,6 +35,7 @@ App <- setRefClass(
 
       # setup routes
       routes <<- list(
+        list(method = "GET", path = "^/api/fileRoot$", handler = .self$getFileRoot),
         list(method = "GET", path = "^/api/study$", handler = .self$getStudy),
         list(method = "GET", path = "^/api/saveStudy$", handler = .self$saveStudy),
         list(method = "POST", path = "^/api/browse$", handler = .self$browse),
@@ -116,13 +117,102 @@ App <- setRefClass(
       return(response)
     },
 
+    # handler for GET /api/fileRoot
+    getFileRoot = function(req, query) {
+      response <- makeJSONResponse(list(fileRoot = fileRoot), unbox = TRUE)
+      return(response)
+    },
+
     # handler for GET /api/study
     getStudy = function(req, query) {
       if (is.null(study)) {
-        response <- makeJSONResponse(list(fileRoot = fileRoot, study = NULL), unbox = TRUE)
-        return(response)
-      } else {
+        return(makeJSONResponse(NULL, status = 404L))
       }
+
+      result <- list(
+        datasetPath = study$datasetPath,
+        form = paste(as.character(study$form), collapse = " "),
+        formred = paste(as.character(study$formred), collapse = " "),
+        weightsColumn = study$weightsColumn,
+        invertedWeights = study$invertedWeights,
+        robust = study$robust,
+        transform = study$transform,
+        zeros = study$zeros,
+        HC3 = study$HC3,
+        method = study$method,
+        cftType = study$cftType,
+        cfts = study$cfts,
+        nboot = study$nboot,
+        varInfo = study$getVarInfo(),
+        hasStatMap = study$hasStatMap(),
+        hasSEI = study$hasSEI()
+      )
+
+      # get file extension for template image
+      hasTemplate <- !is.null(study$template)
+      if (hasTemplate) {
+        md <- regexpr(niftiExt, study$template)
+        templateExt <- substr(study$template, md, md + attr(md, 'match.length') - 1)
+      } else {
+        templateExt <- NULL
+      }
+
+      # create list of data rows for visualization template
+      result$dataRows <- lapply(1:length(study$images), function(i) {
+        # get file extension for outcome image
+        md <- regexpr(niftiExt, study$images[i])
+        outcomeExt <- substr(study$images[i], md, md + attr(md, 'match.length') - 1)
+
+        list(index = i, selected = (i == 1), hasTemplate = hasTemplate,
+             templateExt = templateExt,
+             outcomeBase = basename(study$images[i]),
+             outcomeExt = outcomeExt)
+      })
+
+      statMap <- NULL
+      if (study$hasStatMap()) {
+        # get file extension for statMap image
+        md <- regexpr(niftiExt, study$statMap$stat)
+        statExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
+
+        md <- regexpr(niftiExt, study$statMap$coef)
+        coefExt <- substr(study$statMap$coef, md, md + attr(md, 'match.length') - 1)
+
+        statMap <- list(
+          hasTemplate = hasTemplate, templateExt = templateExt,
+          statExt = statExt, coefExt = coefExt
+        )
+      }
+      result$statMap <- statMap
+
+      sei <- NULL
+      if (study$hasSEI()) {
+        cfts <- lapply(5:length(study$sei), function(i) {
+          list(
+            index = i,
+            selected = (i == 5),
+            name = names(study$sei)[i],
+            sname = gsub("\\W", "_", names(study$sei)[i]),
+            boots = study$sei[[i]]$boots,
+            clusters = lapply(names(study$sei[[i]]$obs), function(n) {
+              list(
+                name = n,
+                size = unname(study$sei[[i]]$obs[n]),
+                pvalue = unname(study$sei[[i]]$pvalues[n])
+              )
+            })
+          )
+        })
+        sei <- list(
+          hasTemplate = hasTemplate,
+          templateExt = templateExt,
+          cfts = cfts
+        )
+      }
+      result$sei <- sei
+
+      response <- makeJSONResponse(result, unbox = TRUE)
+      return(response)
     },
 
     # handler for GET /saveStudy
@@ -173,7 +263,9 @@ App <- setRefClass(
       files$name <- basename(files$path)
       files <- files[grepl(ext, files$name, ignore.case = TRUE) | files$isdir,]
       files <- files[order(!files$isdir, files$name), c("name", "size", "mtime", "isdir", "path")]
-      row.names(files) <- 1:nrow(files)
+      if (nrow(files) > 0) {
+        row.names(files) <- 1:nrow(files)
+      }
 
       data <- list(
         path = path,
@@ -296,15 +388,7 @@ App <- setRefClass(
                              .outdir = studyRoot,
                              datasetPath = datasetPath)
 
-      vars <- getTemplateVars()
-      studyTemplate <- getTemplate("study.html")
-      studyHTML <- whisker::whisker.render(studyTemplate, data = vars)
-
-      modelTemplate <- getTemplate("model.html")
-      modelHTML <- whisker::whisker.render(modelTemplate, data = vars)
-
-      data <- list(study = unbox(studyHTML), model = unbox(modelHTML))
-      response <- makeJSONResponse(data)
+      response <- makeJSONResponse(list(success = TRUE), unbox = TRUE)
       return(response)
     },
 

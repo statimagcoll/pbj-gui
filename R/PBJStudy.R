@@ -269,25 +269,6 @@ PBJStudy <- setRefClass(
       hist(data[[name]], main = name, xlab = "")
     },
 
-    getCftTypeOptions = function() {
-      list(
-        "s" = (cftType == "s"),
-        "p" = (cftType == "p")
-      )
-    },
-
-    getCftValues = function() {
-      lapply(1:length(cfts), function(i) {
-        list(index = i, value = cfts[i])
-      })
-    },
-
-    getMethodOptions = function() {
-      lapply(c('t', 'permutation', 'conditional', 'nonparametric'), function(opt) {
-        list(value = opt, selected = (method == opt))
-      })
-    },
-
     save = function() {
       dir <- tempfile("dir")
       dir.create(dir)
