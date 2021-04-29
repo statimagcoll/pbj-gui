@@ -69,6 +69,26 @@ class Component extends EventTarget {
   hide() {
     $(this.root).addClass('d-none');
   }
+
+  find(selector) {
+    return this.root.querySelector(selector);
+  }
+}
+
+class VisualizeComponent extends Component {
+
+  getPapayaIndex(parentName) {
+    if (typeof(this.papayaName) !== 'string') {
+      throw new Error('this.papayaName is not set!');
+    }
+
+    for (let i = 0; i < papayaContainers.length; i++) {
+      if (papayaContainers[i].containerHtml.parent().is(`#${this.papayaName}`)) {
+        return i;
+      }
+    }
+    return -1;
+  }
 }
 
 class Dialog extends Component {
@@ -87,24 +107,24 @@ class BrowseComponent extends Dialog {
     this.api = api;
 
     // setup parent button event
-    let parentButton = root.querySelector('#browse-parent');
+    let parentButton = this.find('#browse-parent');
     parentButton.addEventListener('click', event => {
       event.preventDefault();
       this.browseParent();
     });
 
     // set up cancel button
-    let cancelButton = root.querySelector('#browse-cancel-button');
+    let cancelButton = this.find('#browse-cancel-button');
     cancelButton.addEventListener('click', event => {
       event.preventDefault();
       this.hide();
     });
 
     // set up select button
-    this.selectButton = root.querySelector('#browse-select-button');
+    this.selectButton = this.find('#browse-select-button');
     this.selectButton.addEventListener('click', event => {
       event.preventDefault();
-      let selectedRow = this.root.querySelector('tr.selected');
+      let selectedRow = this.find('tr.selected');
       this.chooseRow(selectedRow);
     });
   }
@@ -113,7 +133,7 @@ class BrowseComponent extends Dialog {
     this.name = name;
 
     // set title
-    let title = this.root.querySelector('.modal-title');
+    let title = this.find('.modal-title');
     title.textContent = `Select ${name}`;
   }
 
@@ -123,7 +143,7 @@ class BrowseComponent extends Dialog {
 
   setGlob(glob) {
     // set footer
-    let footer = this.root.querySelector('.modal-footer .text');
+    let footer = this.find('.modal-footer .text');
     footer.textContent = `File pattern: ${glob}`;
   }
 
@@ -133,12 +153,12 @@ class BrowseComponent extends Dialog {
 
   setPath(path) {
     this.path = path;
-    this.root.querySelector('#browse-input').value = path;
+    this.find('#browse-input').value = path;
   }
 
   setFiles(files) {
-    let emptyElt = this.root.querySelector('#browse-empty');
-    let filesElt = this.root.querySelector('#browse-files');
+    let emptyElt = this.find('#browse-empty');
+    let filesElt = this.find('#browse-files');
     let tbodyElt = filesElt.querySelector('table tbody');
 
     // clear any existing rows
@@ -150,7 +170,7 @@ class BrowseComponent extends Dialog {
     } else {
       $(emptyElt).addClass('d-none');
 
-      let template = this.root.querySelector('template#browse-file-row');
+      let template = this.find('template#browse-file-row');
       for (let file of files) {
         let frag = template.content.cloneNode(true);
         let row = frag.querySelector('tr');
@@ -212,7 +232,7 @@ class BrowseComponent extends Dialog {
   }
 
   browse(path) {
-    let warning = this.root.querySelector('form i.fa-exclamation-triangle');
+    let warning = this.find('form i.fa-exclamation-triangle');
     if (warning) {
       warning.remove();
     }
@@ -229,7 +249,7 @@ class BrowseComponent extends Dialog {
       },
       // request failed
       () => {
-        let form = this.root.querySelector('form');
+        let form = this.find('form');
         form.insertAdjacentHTML('beforeend', '<i class="fa fa-exclamation-triangle text-danger"></i>');
       }
     );
@@ -241,10 +261,10 @@ class CheckDatasetComponent extends Dialog {
     super(root);
     this.api = api;
 
-    this.form = this.root.querySelector('form');
+    this.form = this.find('form');
 
     // set up select button
-    this.selectButton = this.root.querySelector('#check-dataset-select-button');
+    this.selectButton = this.find('#check-dataset-select-button');
     this.selectButton.addEventListener('click', clickEvent => {
       clickEvent.preventDefault();
 
@@ -262,13 +282,13 @@ class CheckDatasetComponent extends Dialog {
 
   setPath(path) {
     this.path = path;
-    this.root.querySelector('#check-dataset-path').textContent = path;
+    this.find('#check-dataset-path').textContent = path;
   }
 
   setColumns(columns) {
     this.form.innerHTML = '';
 
-    let template = this.root.querySelector('template#check-dataset-column');
+    let template = this.find('template#check-dataset-column');
     for (let column of columns) {
       let frag = template.content.cloneNode(true);
 
@@ -291,7 +311,7 @@ class CheckDatasetComponent extends Dialog {
       link.setAttribute('href', '#' + dataEltId);
       link.addEventListener('click', event => {
         event.preventDefault();
-        let div = this.root.querySelector(event.target.getAttribute('href'));
+        let div = this.find(event.target.getAttribute('href'));
         $(div).toggleClass('d-none');
       });
 
@@ -335,12 +355,11 @@ class WelcomeComponent extends Component {
     super(root);
     this.api = api;
 
-    this.browseComponent = new BrowseComponent(
-      this.root.querySelector('#browse-modal'), api);
+    this.browseComponent = new BrowseComponent(this.find('#browse-modal'), api);
     this.checkDatasetComponent = new CheckDatasetComponent(
-      this.root.querySelector('#check-dataset-modal'), api);
+      this.find('#check-dataset-modal'), api);
 
-    this.welcomeForm = this.root.querySelector('#welcome-form');
+    this.welcomeForm = this.find('#welcome-form');
     this.submitButton = this.welcomeForm.querySelector('#study-submit');
 
     this.setup();
@@ -364,8 +383,15 @@ class WelcomeComponent extends Component {
         data[pair[0]] = pair[1];
       }
 
-      this.api.createStudy(data, (result) => {
-        console.log('createStudy result:', result);
+      this.api.createStudy(data, (result, status) => {
+        if (status !== 200) {
+          console.error(result, status);
+          return;
+        }
+
+        let event = new CustomEvent('studyCreated', { detail: result });
+        this.dispatchEvent(event);
+
         /*
         $('#study').html(data.study);
         $('#model').html(data.model);
@@ -431,27 +457,122 @@ class WelcomeComponent extends Component {
   }
 
   setDataset(path, outcomeColumn) {
-    this.root.querySelector('#study-dataset').value = path;
-    this.root.querySelector('#study-dataset-outcome').value = outcomeColumn;
-    $(this.root.querySelector('#study-dataset-columns')).removeClass('d-none');
+    this.find('#study-dataset').value = path;
+    this.find('#study-dataset-outcome').value = outcomeColumn;
+    $(this.find('#study-dataset-columns')).removeClass('d-none');
   }
 
   setMaskPath(path, parentPath) {
     this.setBrowsePath(parentPath);
-    this.root.querySelector('#study-mask').value = path;
+    this.find('#study-mask').value = path;
   }
 
   setTemplatePath(path, parentPath) {
     this.setBrowsePath(parentPath);
-    this.root.querySelector('#study-template').value = path;
+    this.find('#study-template').value = path;
   }
 
   checkForm() {
-    if (this.welcomeForm.checkValidity()) {
+    // check manually because readonly inputs aren't validated properly natively
+    let fd = new FormData(this.welcomeForm);
+    let ok = true;
+    for (let key of ['dataset', 'outcomeColumn', 'mask', 'template']) {
+      let value = fd.get(key);
+      if (value === null || value === '') {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) {
       this.submitButton.removeAttribute('disabled');
     } else {
       this.submitButton.setAttribute('disabled', '');
     }
+  }
+}
+
+class StudyComponent extends Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.select = this.find('#study-data-row');
+
+    this.setup();
+  }
+
+  setup() {
+    this.select.addEventListener('input', event => {
+      this.emitDataRowChange();
+    });
+  }
+
+  getDataRow() {
+    let option = this.select.selectedOptions[0];
+    let result = {
+      template: option.dataset.template,
+      outcome: option.dataset.outcome
+    };
+    return result;
+  }
+
+  emitDataRowChange() {
+    let data = this.getDataRow();
+    let event = new CustomEvent('dataRowChange', { detail: data });
+    this.dispatchEvent(event);
+  }
+
+  setStudy(study) {
+    // show dataset path
+    this.find('#study-dataset-path').textContent = study.datasetPath;
+
+    // setup data row options
+    let select = this.find('#study-data-row');
+    select.innerHTML = '';
+    for (let dataRow of study.dataRows) {
+      let option = document.createElement('option');
+      option.setAttribute('value', dataRow.index);
+      if (dataRow.selected) {
+        option.setAttribute('selected', '');
+      }
+
+      option.dataset.outcome = `/api/studyImage/outcome/${dataRow.index}${dataRow.outcomeExt}?token=${this.api.token}`;
+      if (dataRow.hasTemplate) {
+        option.dataset.template = `/api/studyImage/template${dataRow.templateExt}?token=${this.api.token}`;
+      }
+
+      option.textContent = dataRow.outcomeBase;
+      select.appendChild(option);
+    }
+
+    this.emitDataRowChange();
+  }
+}
+
+class StudyVisualizeComponent extends VisualizeComponent {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+    this.papayaName = 'visualize-study-papaya';
+
+    this.setup();
+  }
+
+  setup() {
+    papaya.Container.addViewer(this.papayaName);
+  }
+
+  showDataRow(dataRow) {
+    let params = [];
+    params["noNewFiles"] = true;
+    params["images"] = [];
+    if (dataRow.template) {
+      params["images"].push(dataRow.template);
+    }
+    params["images"].push(dataRow.outcome);
+
+    let cIndex = this.getPapayaIndex();
+    papaya.Container.resetViewer(cIndex, params);
   }
 }
 
@@ -462,22 +583,39 @@ class ModelComponent extends Component {
   }
 
   setStudy(study) {
+    // TODO
   }
 }
 
 class MainComponent extends Component {
-  constructor(root, token) {
+  constructor(root, api) {
     super(root);
-    this.token = token;
+    this.api = api;
+
+    this.studyComponent = new StudyComponent(this.find('#study'), api);
+    this.studyVisComponent = new StudyVisualizeComponent(
+      this.find('#study-visualize'), api);
+    this.modelComponent = new ModelComponent(this.find('#model'), api);
+
+    this.studyComponent.addEventListener('dataRowChange', event => {
+      this.studyVisComponent.showDataRow(event.detail);
+    });
+
+    this.setup();
   }
 
   setup() {
     // add url with token parameter to saveStudy button
     let windowUrl = new URL(window.location.href);
-    let saveButton = this.root.querySelector('#save-button');
+    let saveButton = this.find('#save-button');
     let url = new URL('/api/saveStudy', windowUrl);
-    url.searchParams.append('token', this.token);
+    url.searchParams.append('token', this.api.token);
     saveButton.setAttribute('href', url.toString());
+  }
+
+  setStudy(study) {
+    this.studyComponent.setStudy(study);
+    this.modelComponent.setStudy(study);
   }
 }
 
@@ -485,28 +623,36 @@ class AppComponent extends Component {
   constructor(root, api) {
     super(root);
     this.api = api;
-    this.welcomeComponent = new WelcomeComponent(root.querySelector('#welcome'), api);
-    this.mainComponent = new MainComponent(root.querySelector('#main'), api);
-    this.setup();
+    this.welcomeComponent = new WelcomeComponent(this.find('#welcome'), api);
+    this.mainComponent = new MainComponent(this.find('#main'), api);
+
+    this.welcomeComponent.addEventListener('studyCreated', event => {
+      this.getStudy();
+    });
+
+    this.getStudy();
   }
 
-  setup() {
+  getStudy() {
     this.api.getStudy(
       // request completed
       (data, status) => {
         if (status == 200) {
-          //initStudy(token, data.study);
+          this.setStudy(data);
         } else {
           this.welcomeComponent.show();
           this.api.getFileRoot(data => {
             this.welcomeComponent.setBrowsePath(data.fileRoot);
           });
         }
-      },
-      // request failed
-      () => {
       }
     );
+  }
+
+  setStudy(study) {
+    this.mainComponent.setStudy(study);
+    this.welcomeComponent.hide();
+    this.mainComponent.show();
   }
 }
 

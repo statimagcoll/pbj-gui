@@ -392,11 +392,11 @@ App <- setRefClass(
       return(response)
     },
 
-    # handler for GET /studyImage
+    # handler for GET /api/studyImage
     studyImage = function(req, query) {
       # parse path
       path <- req$PATH_INFO
-      parts <- strsplit(path, "/")[[1]][c(-1, -2)]
+      parts <- strsplit(path, "/")[[1]][c(-1, -2, -3)]
 
       filename <- NULL
       candidate <- NULL
