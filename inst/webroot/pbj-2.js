@@ -1,3 +1,29 @@
+let utils = {
+  addClass: function(elt, className) {
+    $(elt).addClass(className);
+  },
+
+  removeClass: function(elt, className) {
+    $(elt).removeClass(className);
+  },
+
+  toggleClass: function(elt, className) {
+    $(elt).toggleClass(className);
+  },
+
+  showModal: function(elt) {
+    $(elt).modal('show');
+  },
+
+  hideModal: function(elt) {
+    $(elt).modal('hide');
+  },
+
+  showTab: function(elt) {
+    $(elt).tab('show');
+  }
+};
+
 class API {
   constructor(token) {
     this.token = token;
@@ -63,11 +89,11 @@ class Component extends EventTarget {
   }
 
   show() {
-    $(this.root).removeClass('d-none');
+    utils.removeClass(this.root, 'd-none');
   }
 
   hide() {
-    $(this.root).addClass('d-none');
+    utils.addClass(this.root, 'd-none');
   }
 
   find(selector) {
@@ -93,11 +119,11 @@ class VisualizeComponent extends Component {
 
 class Dialog extends Component {
   show() {
-    $(this.root).modal('show');
+    utils.showModal(this.root);
   }
 
   hide() {
-    $(this.root).modal('hide');
+    utils.hideModal(this.root);
   }
 }
 
@@ -165,10 +191,10 @@ class BrowseComponent extends Dialog {
     tbodyElt.innerHTML = '';
 
     if (files.length == 0) {
-      $(emptyElt).removeClass('d-none');
-      $(filesElt).addClass('d-none');
+      utils.removeClass(emptyElt, 'd-none');
+      utils.addClass(filesElt, 'd-none');
     } else {
-      $(emptyElt).addClass('d-none');
+      utils.addClass(emptyElt, 'd-none');
 
       let template = this.find('template#browse-file-row');
       for (let file of files) {
@@ -195,16 +221,16 @@ class BrowseComponent extends Dialog {
         tbodyElt.append(frag);
       }
 
-      $(filesElt).removeClass('d-none');
+      utils.removeClass(filesElt, 'd-none');
     }
   }
 
   selectRow(row) {
     console.log('select row:', row);
     let selectedRow = row.parentNode.querySelector('tr.selected');
-    $(selectedRow).removeClass('selected');
+    utils.removeClass(selectedRow, 'selected');
     if (selectedRow != row) {
-      $(row).addClass('selected');
+      utils.addClass(row, 'selected');
       this.selectButton.removeAttribute('disabled');
     } else {
       this.selectButton.setAttribute('disabled', '');
@@ -312,7 +338,7 @@ class CheckDatasetComponent extends Dialog {
       link.addEventListener('click', event => {
         event.preventDefault();
         let div = this.find(event.target.getAttribute('href'));
-        $(div).toggleClass('d-none');
+        utils.toggleClass(div, 'd-none');
       });
 
       let div = frag.querySelector('div.column-data');
@@ -343,7 +369,7 @@ class CheckDatasetComponent extends Dialog {
       () => {
         /*
         let content = '<pre>' + xhr.responseText + '</pre>';
-        modal.find('#browse-error').html(content).removeClass('d-none');
+        modal.find('#browse-error').html(content).utils.removeClass('d-none');
         */
       }
     );
@@ -400,8 +426,8 @@ class WelcomeComponent extends Component {
         });
         //$('#visualize-content').html(data.visualize);
         //$('#model-content').html(data.model);
-        //$('#visualize-link').removeClass('disabled').tab('show');
-        //$('#model-link').removeClass('disabled');
+        //$('#visualize-link').utils.removeClass('disabled').tab('show');
+        //$('#model-link').utils.removeClass('disabled');
         */
       });
     });
@@ -459,7 +485,7 @@ class WelcomeComponent extends Component {
   setDataset(path, outcomeColumn) {
     this.find('#study-dataset').value = path;
     this.find('#study-dataset-outcome').value = outcomeColumn;
-    $(this.find('#study-dataset-columns')).removeClass('d-none');
+    utils.removeClass(this.find('#study-dataset-columns'), 'd-none');
   }
 
   setMaskPath(path, parentPath) {
@@ -583,7 +609,42 @@ class ModelComponent extends Component {
   }
 
   setStudy(study) {
-    // TODO
+    // add model var info rows
+    let template = this.find('template#model-var-row');
+    let tbody = this.find('#model-vars tbody');
+    for (let varInfo of study.varInfo) {
+      if (!varInfo.num) {
+        continue;
+      }
+
+      let frag = template.content.cloneNode(true);
+      let row = frag.querySelector('tr');
+      let cells = frag.querySelectorAll('td');
+      cells.forEach(cell => {
+        let type = cell.dataset.type;
+        if (type === null) {
+          return;
+        }
+
+        let value = varInfo[type];
+        if (value !== null && value !== undefined) {
+          cell.insertAdjacentHTML('afterbegin', value.toString());
+        }
+      });
+      row.querySelector('a').addEventListener('click', event => {
+        event.preventDefault();
+
+        let customEvent = new CustomEvent('showVarInfo', { detail: varInfo });
+        this.dispatchEvent(customEvent);
+      });
+      tbody.append(frag);
+    }
+  }
+}
+
+class ModelVisualizeComponent extends VisualizeComponent {
+  showVarInfo(varInfo) {
+    this.root.textContent = JSON.stringify(varInfo);
   }
 }
 
@@ -594,12 +655,21 @@ class MainComponent extends Component {
 
     this.studyComponent = new StudyComponent(this.find('#study'), api);
     this.studyVisComponent = new StudyVisualizeComponent(
-      this.find('#study-visualize'), api);
-    this.modelComponent = new ModelComponent(this.find('#model'), api);
+      this.find('#visualize-study'), api);
 
     this.studyComponent.addEventListener('dataRowChange', event => {
       this.studyVisComponent.showDataRow(event.detail);
     });
+
+    this.modelComponent = new ModelComponent(this.find('#model'), api);
+    this.modelVisComponent = new ModelVisualizeComponent(
+      this.find('#visualize-model'), api);
+
+    this.modelComponent.addEventListener('showVarInfo', event => {
+      this.modelVisComponent.showVarInfo(event.detail);
+    });
+
+    this.nav = this.find('#pbj-nav');
 
     this.setup();
   }
@@ -611,11 +681,41 @@ class MainComponent extends Component {
     let url = new URL('/api/saveStudy', windowUrl);
     url.searchParams.append('token', this.api.token);
     saveButton.setAttribute('href', url.toString());
+
+    // hook up tab nav
+    this.nav.querySelectorAll('a.nav-link').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        this.showTab(link);
+      });
+    });
+
+    this.showTab(this.find('#study-tab'));
   }
 
   setStudy(study) {
     this.studyComponent.setStudy(study);
     this.modelComponent.setStudy(study);
+  }
+
+  showTab(link) {
+    utils.showTab(link);
+
+    let vis;
+    switch (link.dataset.vis) {
+      case "#visualize-study":
+        vis = this.studyVisComponent;
+        break;
+      case "#visualize-model":
+        vis = this.modelVisComponent;
+        break;
+    }
+
+    if (this.currentVisComponent) {
+      this.currentVisComponent.hide();
+    }
+    this.currentVisComponent = vis;
+    vis.show();
   }
 }
 

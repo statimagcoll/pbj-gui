@@ -222,22 +222,22 @@
           <div class="col-4">
             <ul id="pbj-nav" class="nav nav-tabs" role="tablist">
               <li class="nav-item" role="presentation">
-                <a class="nav-link active" id="study-tab" data-toggle="tab" data-target="study" role="tab">Study</a>
+                <a class="nav-link" id="study-tab" data-toggle="tab" data-target="#study" data-vis="#visualize-study" role="tab">Study</a>
               </li>
               <li class="nav-item" role="presentation">
-                <a class="nav-link" id="model-tab" data-toggle="tab" data-target="model" role="tab">Model</a>
+                <a class="nav-link" id="model-tab" data-toggle="tab" data-target="#model" data-vis="#visualize-model" role="tab">Model</a>
               </li>
               <li role="presentation" class="nav-item">
-                <a class="nav-link" id="statmap-tab" data-toggle="tab" data-target="statmap" role="tab">StatMap</a>
+                <a class="nav-link" id="statmap-tab" data-toggle="tab" data-target="#statmap" role="tab">StatMap</a>
               </li>
               <li role="presentation" class="nav-item">
-                <a class="nav-link" id="sei-tab" data-toggle="tab" data-target="sei" role="tab">SEI</a>
+                <a class="nav-link" id="sei-tab" data-toggle="tab" data-target="#sei" role="tab">SEI</a>
               </li>
             </ul>
 
             <div id="pbj-content" class="tab-content mt-2">
               <!-- study tab content -->
-              <div class="tab-pane active" id="study" role="tabpanel">
+              <div class="tab-pane" id="study" role="tabpanel">
                 <p class="border-bottom font-weight-bold">Dataset</p>
                 <p id="study-dataset-path"></p>
 
@@ -262,6 +262,38 @@
 
               <!-- model tab content -->
               <div class="tab-pane" id="model" role="tabpanel">
+                <p class="border-bottom font-weight-bold">Histograms</p>
+                <div class="table-wrapper">
+                  <table id="model-vars" class="table table-striped">
+                    <thead class="thead-light">
+                      <tr>
+                        <th scope="col" class="name">Name</th>
+                        <th scope="col">Mean</th>
+                        <th scope="col">Median</th>
+                        <th scope="col">NAs</th>
+                        <th scope="col">NA%</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                  </table>
+                  <template id="model-var-row">
+                    <tr>
+                      <td data-type="name" class="name"></td>
+                      <td data-type="mean"></td>
+                      <td data-type="median"></td>
+                      <td data-type="na"></td>
+                      <td data-type="naPct">
+                        <i class="fas fa-exclamation-triangle d-none" style="color: #cccc00"></i>
+                        <i class="fas fa-exclamation-circle d-none" style="color: red"></i>
+                      </td>
+                      <td>
+                        <a href="#"><i class="fas fa-arrow-circle-right"></i></a>
+                      </td>
+                    </tr>
+                  </template>
+                </div>
                 <p class="border-bottom font-weight-bold mt-3">
                   Model specification
                 </p>
