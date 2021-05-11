@@ -29,6 +29,17 @@ class API {
     this.token = token;
   }
 
+  makeURL(action) {
+    let windowUrl = new URL(window.location.href);
+    if (Array.isArray(action)) {
+      action = action.join("/");
+    }
+
+    let url = new URL(`/api/${action}`, windowUrl);
+    url.searchParams.append('token', this.token);
+    return url;
+  }
+
   getFileRoot(complete, failure) {
     this.request('GET', 'fileRoot', null, complete, failure);
   }
@@ -52,9 +63,7 @@ class API {
   }
 
   request(method, action, data, complete, failure) {
-    let windowUrl = new URL(window.location.href);
-    let url = new URL(`/api/${action}`, windowUrl);
-    url.searchParams.append('token', this.token);
+    let url = this.makeURL(action);
 
     let xhr = new XMLHttpRequest();
     if (complete) {
@@ -98,6 +107,10 @@ class Component extends EventTarget {
 
   find(selector) {
     return this.root.querySelector(selector);
+  }
+
+  findAll(selector) {
+    return this.root.querySelectorAll(selector);
   }
 }
 
@@ -562,9 +575,9 @@ class StudyComponent extends Component {
         option.setAttribute('selected', '');
       }
 
-      option.dataset.outcome = `/api/studyImage/outcome/${dataRow.index}${dataRow.outcomeExt}?token=${this.api.token}`;
+      option.dataset.outcome = this.api.makeURL(['studyImage', 'outcome', `${dataRow.index}${dataRow.outcomeExt}`]).toString();
       if (dataRow.hasTemplate) {
-        option.dataset.template = `/api/studyImage/template${dataRow.templateExt}?token=${this.api.token}`;
+        option.dataset.template = this.api.makeURL(['studyImage', `template${dataRow.templateExt}`]).toString();
       }
 
       option.textContent = dataRow.outcomeBase;
@@ -606,12 +619,58 @@ class ModelComponent extends Component {
   constructor(root, api) {
     super(root);
     this.api = api;
+
+    this.form = this.find('form');
+  }
+
+  setStudy(study) {
+    // configure model form
+    this.form.querySelectorAll('input, select').forEach(elt => {
+      if (!(elt.name in study)) {
+        return;
+      }
+      if (elt.tagName === 'INPUT') {
+        switch (elt.type) {
+          case 'text':
+            elt.value = study[elt.name];
+            break;
+          case 'checkbox':
+            elt.checked = study[elt.name];
+            break;
+        }
+      } else if (elt.tagName === 'SELECT') {
+        for (let i = 0; i < elt.options.length; i++) {
+          let option = elt.options[i];
+          if (option.value == study[elt.name]) {
+            option.setAttribute('selected', '');
+            break;
+          }
+        }
+      }
+    });
+  }
+}
+
+class ModelVisualizeComponent extends VisualizeComponent {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.setup();
+  }
+
+  setup() {
+    let link = this.find('#visualize-model-var a.back');
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      this.showVars();
+    });
   }
 
   setStudy(study) {
     // add model var info rows
-    let template = this.find('template#model-var-row');
-    let tbody = this.find('#model-vars tbody');
+    let template = this.find('template#visualize-model-var-row');
+    let tbody = this.find('#visualize-model-vars table tbody');
     for (let varInfo of study.varInfo) {
       if (!varInfo.num) {
         continue;
@@ -633,18 +692,28 @@ class ModelComponent extends Component {
       });
       row.querySelector('a').addEventListener('click', event => {
         event.preventDefault();
-
-        let customEvent = new CustomEvent('showVarInfo', { detail: varInfo });
-        this.dispatchEvent(customEvent);
+        this.showVar(varInfo);
       });
       tbody.append(frag);
     }
   }
-}
 
-class ModelVisualizeComponent extends VisualizeComponent {
-  showVarInfo(varInfo) {
-    this.root.textContent = JSON.stringify(varInfo);
+  showVars() {
+    utils.addClass(this.find('#visualize-model-var'), 'd-none')
+    utils.removeClass(this.find('#visualize-model-vars'), 'd-none')
+  }
+
+  showVar(varInfo) {
+    let div = this.find('#visualize-model-var');
+    div.querySelectorAll('span').forEach(elt => {
+      elt.textContent = varInfo[elt.dataset.type];
+    });
+    let histUrl = this.api.makeURL('hist');
+    histUrl.searchParams.append('var', varInfo.name);
+    div.querySelector('img').setAttribute('src', histUrl.toString());
+
+    utils.addClass(this.find('#visualize-model-vars'), 'd-none')
+    utils.removeClass(div, 'd-none')
   }
 }
 
@@ -665,10 +734,6 @@ class MainComponent extends Component {
     this.modelVisComponent = new ModelVisualizeComponent(
       this.find('#visualize-model'), api);
 
-    this.modelComponent.addEventListener('showVarInfo', event => {
-      this.modelVisComponent.showVarInfo(event.detail);
-    });
-
     this.nav = this.find('#pbj-nav');
 
     this.setup();
@@ -676,10 +741,8 @@ class MainComponent extends Component {
 
   setup() {
     // add url with token parameter to saveStudy button
-    let windowUrl = new URL(window.location.href);
     let saveButton = this.find('#save-button');
-    let url = new URL('/api/saveStudy', windowUrl);
-    url.searchParams.append('token', this.api.token);
+    let url = this.api.makeURL('saveStudy');
     saveButton.setAttribute('href', url.toString());
 
     // hook up tab nav
@@ -696,6 +759,7 @@ class MainComponent extends Component {
   setStudy(study) {
     this.studyComponent.setStudy(study);
     this.modelComponent.setStudy(study);
+    this.modelVisComponent.setStudy(study);
   }
 
   showTab(link) {

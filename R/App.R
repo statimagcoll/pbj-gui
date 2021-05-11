@@ -504,13 +504,13 @@ App <- setRefClass(
       # validate params
       errors <- list()
       params <- result
-      if (!("formfull" %in% names(params))) {
+      if (!("form" %in% names(params))) {
         # missing full formula
-        errors$formfull <- 'is required'
+        errors$form <- 'is required'
       } else {
-        formfull <- try(as.formula(params$formfull))
-        if (inherits(formfull, 'try-error')) {
-          errors$formfull <- 'is invalid'
+        form <- try(as.formula(params$form))
+        if (inherits(form, 'try-error')) {
+          errors$form <- 'is invalid'
         }
       }
 
@@ -602,7 +602,7 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      study$form <<- formfull
+      study$form <<- form
       study$formred <<- formred
       study$weightsColumn <<- weightsColumn
       study$invertedWeights <<- invertedWeights

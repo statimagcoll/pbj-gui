@@ -262,38 +262,6 @@
 
               <!-- model tab content -->
               <div class="tab-pane" id="model" role="tabpanel">
-                <p class="border-bottom font-weight-bold">Histograms</p>
-                <div class="table-wrapper">
-                  <table id="model-vars" class="table table-striped">
-                    <thead class="thead-light">
-                      <tr>
-                        <th scope="col" class="name">Name</th>
-                        <th scope="col">Mean</th>
-                        <th scope="col">Median</th>
-                        <th scope="col">NAs</th>
-                        <th scope="col">NA%</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                    </tbody>
-                  </table>
-                  <template id="model-var-row">
-                    <tr>
-                      <td data-type="name" class="name"></td>
-                      <td data-type="mean"></td>
-                      <td data-type="median"></td>
-                      <td data-type="na"></td>
-                      <td data-type="naPct">
-                        <i class="fas fa-exclamation-triangle d-none" style="color: #cccc00"></i>
-                        <i class="fas fa-exclamation-circle d-none" style="color: red"></i>
-                      </td>
-                      <td>
-                        <a href="#"><i class="fas fa-arrow-circle-right"></i></a>
-                      </td>
-                    </tr>
-                  </template>
-                </div>
                 <p class="border-bottom font-weight-bold mt-3">
                   Model specification
                 </p>
@@ -320,9 +288,9 @@
                   </p>
                 </div>
                 -->
-                <form id="model-form" autocomplete="off">
+                <form autocomplete="off">
                   <div class="form-group">
-                    <label for="model-formfull">
+                    <label for="model-form">
                       Full model formula
                       <i class="far fa-question-circle" title="Full model formula"
                         data-toggle="popover" data-container="body" data-trigger="hover"
@@ -330,7 +298,7 @@
                         data-content="PBJ uses the convention of specifying a full and reduced model, where the parameters of interest are the difference between the two models. The formulas are specified in R format. Variables that take character values are assumed to be factors."
                       ></i>
                     </label>
-                    <input id="model-formfull" class="form-control" name="formfull" type="text" />
+                    <input id="model-form" class="form-control" name="form" type="text" />
                   </div>
                   <div class="form-group">
                     <label for="model-formred">Reduced model formula</label>
@@ -600,6 +568,69 @@
             <div id="visualize-study-papaya"></div>
           </div>
           <div id="visualize-model" class="col-8 visualize d-none">
+            <div id="visualize-model-vars">
+              <p class="border-bottom font-weight-bold">Numeric Variables</p>
+              <div class="table-container">
+                <div class="table-scroller">
+                  <table class="table table-striped">
+                    <thead class="thead-light">
+                      <tr>
+                        <th scope="col" class="name">Name</th>
+                        <th scope="col">Mean</th>
+                        <th scope="col">Median</th>
+                        <th scope="col">NAs</th>
+                        <th scope="col">NA%</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                  </table>
+                  <template id="visualize-model-var-row">
+                    <tr>
+                      <td data-type="name" class="name"></td>
+                      <td data-type="mean"></td>
+                      <td data-type="median"></td>
+                      <td data-type="na"></td>
+                      <td data-type="naPct">
+                        <i class="fas fa-exclamation-triangle d-none" style="color: #cccc00"></i>
+                        <i class="fas fa-exclamation-circle d-none" style="color: red"></i>
+                      </td>
+                      <td>
+                        <a href="#"><i class="fas fa-arrow-circle-right"></i></a>
+                      </td>
+                    </tr>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <div id="visualize-model-var" class="d-none">
+              <p class="border-bottom font-weight-bold">
+                Variable: <span data-type="name"></span>
+              </p>
+              <ul class="stats">
+                <li>
+                  <strong>Mean</strong>: <span data-type="mean"></span>
+                </li>
+                <li>
+                  <strong>Median</strong>: <span data-type="median"></span>
+                </li>
+                <li>
+                  <strong>NAs</strong>: <span data-type="na"></span>
+                </li>
+                <li>
+                  <strong>NA %</strong>: <span data-type="naPct"></span>
+                </li>
+              </ul>
+              <img />
+              <p>
+                <button class="btn btn-secondary">Add to full formula</button>
+                <button class="btn btn-secondary">Add to reduced formula</button>
+              </p>
+              <p>
+                <a href="#" class="back">&lt; Back</a>
+              </p>
+            </div>
           </div>
           <div id="visualize-statmap" class="col-8 visualize papaya-container d-none">
             <div id="visualize-statmap-papaya"></div>
