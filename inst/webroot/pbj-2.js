@@ -649,6 +649,25 @@ class ModelComponent extends Component {
       }
     });
   }
+
+  addVarToFullFormula(varInfo) {
+    this.addVarToFormula('form', varInfo);
+  }
+
+  addVarToReducedFormula(varInfo) {
+    this.addVarToFormula('formred', varInfo);
+  }
+
+  addVarToFormula(which, varInfo) {
+    let input = this.find(`form input[name="${which}"]`);
+    let formula = input.value;
+    if (formula === "~ 1" || formula === "") {
+      formula = `~ ${varInfo.name}`
+    } else {
+      formula += ` + ${varInfo.name}`
+    }
+    input.value = formula;
+  }
 }
 
 class ModelVisualizeComponent extends VisualizeComponent {
@@ -664,6 +683,22 @@ class ModelVisualizeComponent extends VisualizeComponent {
     link.addEventListener('click', event => {
       event.preventDefault();
       this.showVars();
+    });
+
+    let fullBtn = this.find('#visualize-model-add-full');
+    fullBtn.addEventListener('click', event => {
+      event.preventDefault();
+      this.dispatchEvent(new CustomEvent('addVarToFullFormula', {
+        detail: this.currentVarInfo
+      }));
+    });
+
+    let reducedBtn = this.find('#visualize-model-add-reduced');
+    reducedBtn.addEventListener('click', event => {
+      event.preventDefault();
+      this.dispatchEvent(new CustomEvent('addVarToReducedFormula', {
+        detail: this.currentVarInfo
+      }));
     });
   }
 
@@ -704,6 +739,8 @@ class ModelVisualizeComponent extends VisualizeComponent {
   }
 
   showVar(varInfo) {
+    this.currentVarInfo = varInfo;
+
     let div = this.find('#visualize-model-var');
     div.querySelectorAll('span').forEach(elt => {
       elt.textContent = varInfo[elt.dataset.type];
@@ -723,16 +760,23 @@ class MainComponent extends Component {
     this.api = api;
 
     this.studyComponent = new StudyComponent(this.find('#study'), api);
+
     this.studyVisComponent = new StudyVisualizeComponent(
       this.find('#visualize-study'), api);
-
     this.studyComponent.addEventListener('dataRowChange', event => {
       this.studyVisComponent.showDataRow(event.detail);
     });
 
     this.modelComponent = new ModelComponent(this.find('#model'), api);
+
     this.modelVisComponent = new ModelVisualizeComponent(
       this.find('#visualize-model'), api);
+    this.modelVisComponent.addEventListener('addVarToFullFormula', event => {
+      this.modelComponent.addVarToFullFormula(event.detail);
+    });
+    this.modelVisComponent.addEventListener('addVarToReducedFormula', event => {
+      this.modelComponent.addVarToReducedFormula(event.detail);
+    });
 
     this.nav = this.find('#pbj-nav');
 
