@@ -131,7 +131,7 @@ App <- setRefClass(
 
       result <- list(
         datasetPath = study$datasetPath,
-        form = paste(as.character(study$form), collapse = " "),
+        formfull = paste(as.character(study$formfull), collapse = " "),
         formred = paste(as.character(study$formred), collapse = " "),
         weightsColumn = study$weightsColumn,
         invertedWeights = study$invertedWeights,
@@ -380,7 +380,7 @@ App <- setRefClass(
       mask <- normalizePath(params$mask, mustWork = TRUE)
       template <- normalizePath(params$template, mustWork = TRUE)
       study <<- PBJStudy$new(images = images,
-                             form = ~ 1,
+                             formfull = ~ 1,
                              formred = NULL,
                              mask = mask,
                              data = dataset,
@@ -504,13 +504,13 @@ App <- setRefClass(
       # validate params
       errors <- list()
       params <- result
-      if (!("form" %in% names(params))) {
+      if (!("formfull" %in% names(params))) {
         # missing full formula
-        errors$form <- 'is required'
+        errors$formfull <- 'is required'
       } else {
-        form <- try(as.formula(params$form))
-        if (inherits(form, 'try-error')) {
-          errors$form <- 'is invalid'
+        formfull <- try(as.formula(params$formfull))
+        if (inherits(formfull, 'try-error')) {
+          errors$formfull <- 'is invalid'
         }
       }
 
@@ -602,7 +602,7 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      study$form <<- form
+      study$formfull <<- formfull
       study$formred <<- formred
       study$weightsColumn <<- weightsColumn
       study$invertedWeights <<- invertedWeights
@@ -811,7 +811,7 @@ App <- setRefClass(
       if (!is.null(study)) {
         result$study <- list(
           datasetPath = study$datasetPath,
-          form = paste(as.character(study$form), collapse = " "),
+          formfull = paste(as.character(study$formfull), collapse = " "),
           formred = paste(as.character(study$formred), collapse = " "),
           invertedWeights = study$invertedWeights,
           robust = study$robust,

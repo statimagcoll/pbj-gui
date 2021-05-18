@@ -651,7 +651,7 @@ class ModelComponent extends Component {
   }
 
   addVarToFullFormula(varInfo) {
-    this.addVarToFormula('form', varInfo);
+    this.addVarToFormula('formfull', varInfo);
   }
 
   addVarToReducedFormula(varInfo) {

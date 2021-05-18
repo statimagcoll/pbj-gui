@@ -1,13 +1,13 @@
 PBJStudy <- setRefClass(
   Class = "PBJStudy",
-  fields = c("images", "form", "formred", "mask", "data", "weightsColumn",
+  fields = c("images", "formfull", "formred", "mask", "data", "weightsColumn",
              "invertedWeights", "template", "formImages", "robust",
              "transform", "outdir", "zeros", "HC3", "mc.cores", "statMap",
              "cftType", "cfts","nboot", "kernel", "rboot", "method", "sei",
              "statMapJob", "seiJob", "seiProgressFile", "datasetPath"),
   methods = list(
     initialize =
-      function(images, form, formred, mask, data = NULL,
+      function(images, formfull, formred, mask, data = NULL,
                weightsColumn = NULL, invertedWeights = FALSE,
                template = NULL, formImages = NULL, robust = TRUE,
                transform = c('none', 't', 'edgeworth'), zeros = FALSE,
@@ -19,7 +19,7 @@ PBJStudy <- setRefClass(
                .outdir = NULL, datasetPath = NULL) {
 
       images <<- images
-      form <<- form
+      formfull <<- formfull
       formred <<- formred
       mask <<- mask
       data <<- data
@@ -67,11 +67,11 @@ PBJStudy <- setRefClass(
       sei <<- NULL
 
       # run lmPBJ in a separate R process
-      f <- function(images, form, formred, mask, data, W, Winv, template,
+      f <- function(images, formfull, formred, mask, data, W, Winv, template,
                     formImages, robust, transform, outdir, zeros, HC3,
                     mc.cores) {
 
-        result <- pbj::lmPBJ(images, form, formred, mask, data, W, Winv,
+        result <- pbj::lmPBJ(images, formfull, formred, mask, data, W, Winv,
                              template, formImages, robust, transform, outdir,
                              zeros, HC3, mc.cores)
         return(result)
@@ -88,7 +88,7 @@ PBJStudy <- setRefClass(
       }
       args <- list(
         "images"     = images,
-        "form"       = form,
+        "formfull"   = formfull,
         "formred"    = formred,
         "mask"       = mask,
         "data"       = data,
