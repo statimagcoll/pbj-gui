@@ -645,10 +645,16 @@ App <- setRefClass(
       }
 
       if (study$hasStatMap()) {
-        # statMap exists, render template
-        statMapTemplate <- getTemplate("statMap.html")
-        vars <- getTemplateVars()
-        data$html <- unbox(whisker::whisker.render(statMapTemplate, data = vars))
+        # get file extension for statMap image
+        md <- regexpr(niftiExt, study$statMap$stat)
+        statExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
+
+        md <- regexpr(niftiExt, study$statMap$coef)
+        coefExt <- substr(study$statMap$coef, md, md + attr(md, 'match.length') - 1)
+
+        data$statMap <- list(
+          statExt = statExt, coefExt = coefExt
+        )
 
         if (is.null(data$status)) {
           data$status <- unbox("finished")

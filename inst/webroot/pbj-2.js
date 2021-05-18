@@ -62,6 +62,14 @@ class API {
     this.request('POST', 'checkDataset', data, complete, failure);
   }
 
+  createStatMap(data, complete, failure) {
+    this.request('POST', 'createStatMap', data, complete, failure);
+  }
+
+  getStatMap(complete, failure) {
+    this.request('GET', 'statMap', null, complete, failure);
+  }
+
   request(method, action, data, complete, failure) {
     let url = this.makeURL(action);
 
@@ -114,7 +122,7 @@ class Component extends EventTarget {
   }
 }
 
-class VisualizeComponent extends Component {
+class PapayaComponent extends Component {
 
   getPapayaIndex(parentName) {
     if (typeof(this.papayaName) !== 'string') {
@@ -588,7 +596,7 @@ class StudyComponent extends Component {
   }
 }
 
-class StudyVisualizeComponent extends VisualizeComponent {
+class StudyVisualizeComponent extends PapayaComponent {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -621,6 +629,15 @@ class ModelComponent extends Component {
     this.api = api;
 
     this.form = this.find('form');
+    this.submitButton = this.find('#model-submit');
+    this.setup();
+  }
+
+  setup() {
+    this.form.addEventListener('submit', event => {
+      event.preventDefault();
+      this.submit();
+    });
   }
 
   setStudy(study) {
@@ -668,9 +685,70 @@ class ModelComponent extends Component {
     }
     input.value = formula;
   }
+
+  submit() {
+    let fd = new FormData(this.form);
+    let data = {
+      'formfull': fd.get('formfull'),
+      'formred':  fd.get('formred'),
+      'weightsColumn': fd.get('weightsColumn'),
+      'invertedWeights': fd.has('invertedWeights'),
+      'robust': fd.has('robust'),
+      'transform': fd.get('transform'),
+      'zeros': fd.has('zeros'),
+      'HC3': fd.has('HC3')
+    };
+
+    this.submitButton.setAttribute('disabled', '');
+    utils.removeClass(this.submitButton, 'active');
+    utils.addClass(this.submitButton, 'running');
+
+    this.api.createStatMap(data,
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          // check for statMap completion in 3 seconds
+          setTimeout(() => { this.checkStatMap() }, 3000);
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
+
+  checkStatMap() {
+    this.api.getStatMap(
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          if (result.status === 'running') {
+            // wait another 3 seconds
+            setTimeout(() => { this.checkStatMap() }, 3000);
+          } else {
+            this.submitButton.removeAttribute('disabled');
+            utils.removeClass(this.submitButton, 'running');
+            utils.addClass(this.submitButton, 'active');
+
+            if (result.status === 'finished') {
+              let event = new CustomEvent('statMapCreated', { detail: result.statMap });
+              this.dispatchEvent(event);
+            } else {
+              // statMap creation failed
+              // FIXME
+              window.alert('statMap failed!');
+            }
+          }
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
 }
 
-class ModelVisualizeComponent extends VisualizeComponent {
+class ModelVisualizeComponent extends Component {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -754,6 +832,96 @@ class ModelVisualizeComponent extends VisualizeComponent {
   }
 }
 
+class StatMapComponent extends Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.setup();
+  }
+
+  setup() {
+    /*
+    $('#statmap-image').change(function(e) {
+      let index = getPapayaIndex('statmap');
+      if (index > -1) {
+        let params = getStatMapPapayaParams();
+        if (params === undefined) {
+          console.error('statMap params is undefined!');
+          return;
+        }
+        papaya.Container.resetViewer(index, params);
+      }
+    });
+
+    $('#sei-form').submit(function(event) {
+      event.preventDefault();
+
+      let form = $(this);
+      let data = {
+        'token': token,
+        'cftType': form.find('input[name="cftType"]:checked').val(),
+        'cfts': form.find('input[name="cfts[]"]').map(function(i) { return $(this).val() }).get(),
+        'method': form.find('select[name="method"]').val(),
+        'nboot': form.find('input[name="nboot"]').val()
+      };
+
+      $('#sei-submit').prop('disabled', true).
+        removeClass('active').addClass('running');
+
+      $.ajax({
+        type: 'POST',
+        url: `/createSEI?token=${token}`,
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        success: function(result) {
+          setTimeout(checkSEI, 3000);
+        },
+        error: function(xhr) {
+          console.log('unknown error:', xhr);
+        }
+      });
+    });
+
+    $('#sei-form #sei-cft-add').click(function(event) {
+      event.preventDefault();
+
+      // copy existing cft group
+      let elt = $('#sei-form .sei-cft-group:last-child').clone().appendTo('#sei-cft-groups');
+      elt.find('.sei-cft-trash').click(deleteSeiCft);
+    });
+
+    $('#sei-form .sei-cft-trash').click(deleteSeiCft);
+
+    //// initialize papaya if statMap tab is active
+    //if ($('#statmap-tab').hasClass('active')) {
+      //setTimeout(initStatMapPapaya, 500);
+    //}
+
+    // init popovers in statmap tab
+    $('#statmap [data-toggle="popover"]').popover({ 'html': true });
+    */
+  }
+
+  setStudy(study) {
+  }
+
+  setStatMap(statMap) {
+  }
+}
+
+class StatMapVisualizeComponent extends PapayaComponent {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+    this.papayaName = 'visualize-statmap-papaya';
+  }
+
+  setStatMap(statMap) {
+    //papaya.Container.addViewer(this.papayaName);
+  }
+}
+
 class MainComponent extends Component {
   constructor(root, api) {
     super(root);
@@ -768,6 +936,10 @@ class MainComponent extends Component {
     });
 
     this.modelComponent = new ModelComponent(this.find('#model'), api);
+    this.modelComponent.addEventListener('statMapCreated', event => {
+      this.setStatMap(event.detail);
+      this.showTab(this.find('#statmap-tab'));
+    });
 
     this.modelVisComponent = new ModelVisualizeComponent(
       this.find('#visualize-model'), api);
@@ -777,6 +949,12 @@ class MainComponent extends Component {
     this.modelVisComponent.addEventListener('addVarToReducedFormula', event => {
       this.modelComponent.addVarToReducedFormula(event.detail);
     });
+
+    this.statMapComponent = new StatMapComponent(this.find('#statmap'), api);
+
+    this.statMapVisComponent = new StatMapVisualizeComponent(
+      this.find('#visualize-statmap'), api
+    );
 
     this.nav = this.find('#pbj-nav');
 
@@ -804,6 +982,12 @@ class MainComponent extends Component {
     this.studyComponent.setStudy(study);
     this.modelComponent.setStudy(study);
     this.modelVisComponent.setStudy(study);
+    this.statMapComponent.setStudy(study);
+  }
+
+  setStatMap(statMap) {
+    utils.removeClass(this.find('#statmap-tab'), 'disabled');
+    this.statMapVisComponent.setStatMap(statMap);
   }
 
   showTab(link) {
@@ -816,6 +1000,9 @@ class MainComponent extends Component {
         break;
       case "#visualize-model":
         vis = this.modelVisComponent;
+        break;
+      case '#visualize-statmap':
+        vis = this.statMapVisComponent;
         break;
     }
 
