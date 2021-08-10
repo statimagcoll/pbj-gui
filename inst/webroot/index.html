@@ -30,7 +30,7 @@
     <title>PBJ: Modern group level neuroimage analysis methods</title>
   </head>
   <body>
-    <div id="app">
+    <div id="app" class="mb-2">
 
       <!-- welcome panel -->
       <div id="welcome" class="container d-none">
@@ -94,6 +94,14 @@
                   data-type="nifti" type="button">Select</button>
               </div>
 
+              <div class="form-group pb-2">
+                <label>Output Folder</label>
+                <input id="study-outdir" class="form-control" name="outdir" type="text"
+                  readonly required placeholder="No directory selected." />
+                <button class="browse btn btn-secondary mt-2" data-name="outdir" data-type="dir"
+                  type="button">Select</button>
+              </div>
+
               <button id="study-submit" type="submit" class="btn btn-primary" disabled>Continue</button>
               <!--
               or <button id="study-example" type="button" class="btn btn-success">Use example</button>
@@ -150,6 +158,7 @@
                 </div>
               </div>
               <div class="modal-footer">
+                <button id="browse-folder-button" type="button" class="btn btn-secondary d-none">New folder</button>
                 <div class="text flex-grow-1"></div>
                 <button id="browse-cancel-button" type="button" class="btn btn-secondary">Cancel</button>
                 <button id="browse-select-button" type="button" class="btn btn-primary">Select</button>

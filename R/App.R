@@ -1,9 +1,9 @@
 App <- setRefClass(
   Class = "PBJApp",
-  fields = c("webRoot", "fileRoot", "studyRoot", "staticPaths", "routes",
-             "token", "datasetExt", "niftiExt", "study"),
+  fields = c("webRoot", "fileRoot", "staticPaths", "routes", "token",
+             "datasetExt", "niftiExt", "study"),
   methods = list(
-    initialize = function(.study = NULL) {
+    initialize = function() {
       datasetExt <<- "\\.(csv|rds)$"
       niftiExt <<- "\\.nii(\\.gz)?$"
       fileRoot <<- getwd()
@@ -14,18 +14,11 @@ App <- setRefClass(
         webRoot <<- file.path(find.package("pbjGUI"), "inst", "webroot")
 
         if (!dir.exists(webRoot)) {
-          stop("Can't find package webroot directory!")
+          stop("can't find package webroot directory")
         }
       }
 
-      if (!is.null(.study)) {
-        study <<- .study
-        studyRoot <<- study$outdir
-      } else {
-        study <<- NULL
-        studyRoot <<- tempfile()
-        dir.create(studyRoot)
-      }
+      study <<- NULL
 
       # setup static paths for httpuv
       #staticPaths <<- list(
@@ -129,88 +122,89 @@ App <- setRefClass(
         return(makeJSONResponse(NULL, status = 404L))
       }
 
-      result <- list(
-        datasetPath = study$datasetPath,
-        formfull = paste(as.character(study$formfull), collapse = " "),
-        formred = paste(as.character(study$formred), collapse = " "),
-        weightsColumn = study$weightsColumn,
-        invertedWeights = study$invertedWeights,
-        robust = study$robust,
-        transform = study$transform,
-        zeros = study$zeros,
-        HC3 = study$HC3,
-        method = study$method,
-        cftType = study$cftType,
-        cfts = study$cfts,
-        nboot = study$nboot,
-        varInfo = study$getVarInfo(),
-        hasStatMap = study$hasStatMap(),
-        hasSEI = study$hasSEI()
-      )
+      #result <- list(
+        #datasetPath = study$datasetPath,
+        #formfull = paste(as.character(study$formfull), collapse = " "),
+        #formred = paste(as.character(study$formred), collapse = " "),
+        #weightsColumn = study$weightsColumn,
+        #invertedWeights = study$invertedWeights,
+        #robust = study$robust,
+        #transform = study$transform,
+        #zeros = study$zeros,
+        #HC3 = study$HC3,
+        #method = study$method,
+        #cftType = study$cftType,
+        #cfts = study$cfts,
+        #nboot = study$nboot,
+        #varInfo = study$getVarInfo(),
+        #hasStatMap = study$hasStatMap(),
+        #hasSEI = study$hasSEI()
+      #)
 
-      # get file extension for template image
-      hasTemplate <- !is.null(study$template)
-      if (hasTemplate) {
-        md <- regexpr(niftiExt, study$template)
-        templateExt <- substr(study$template, md, md + attr(md, 'match.length') - 1)
-      } else {
-        templateExt <- NULL
-      }
+      ## get file extension for template image
+      #hasTemplate <- !is.null(study$template)
+      #if (hasTemplate) {
+        #md <- regexpr(niftiExt, study$template)
+        #templateExt <- substr(study$template, md, md + attr(md, 'match.length') - 1)
+      #} else {
+        #templateExt <- NULL
+      #}
 
-      # create list of data rows for visualization template
-      result$dataRows <- lapply(1:length(study$images), function(i) {
-        # get file extension for outcome image
-        md <- regexpr(niftiExt, study$images[i])
-        outcomeExt <- substr(study$images[i], md, md + attr(md, 'match.length') - 1)
+      ## create list of data rows for visualization template
+      #result$dataRows <- lapply(1:length(study$images), function(i) {
+        ## get file extension for outcome image
+        #md <- regexpr(niftiExt, study$images[i])
+        #outcomeExt <- substr(study$images[i], md, md + attr(md, 'match.length') - 1)
 
-        list(index = i, selected = (i == 1), hasTemplate = hasTemplate,
-             templateExt = templateExt,
-             outcomeBase = basename(study$images[i]),
-             outcomeExt = outcomeExt)
-      })
+        #list(index = i, selected = (i == 1), hasTemplate = hasTemplate,
+             #templateExt = templateExt,
+             #outcomeBase = basename(study$images[i]),
+             #outcomeExt = outcomeExt)
+      #})
 
-      statMap <- NULL
-      if (study$hasStatMap()) {
-        # get file extension for statMap image
-        md <- regexpr(niftiExt, study$statMap$stat)
-        statExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
+      #statMap <- NULL
+      #if (study$hasStatMap()) {
+        ## get file extension for statMap image
+        #md <- regexpr(niftiExt, study$statMap$stat)
+        #statExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
 
-        md <- regexpr(niftiExt, study$statMap$coef)
-        coefExt <- substr(study$statMap$coef, md, md + attr(md, 'match.length') - 1)
+        #md <- regexpr(niftiExt, study$statMap$coef)
+        #coefExt <- substr(study$statMap$coef, md, md + attr(md, 'match.length') - 1)
 
-        statMap <- list(
-          hasTemplate = hasTemplate, templateExt = templateExt,
-          statExt = statExt, coefExt = coefExt
-        )
-      }
-      result$statMap <- statMap
+        #statMap <- list(
+          #hasTemplate = hasTemplate, templateExt = templateExt,
+          #statExt = statExt, coefExt = coefExt
+        #)
+      #}
+      #result$statMap <- statMap
 
-      sei <- NULL
-      if (study$hasSEI()) {
-        cfts <- lapply(5:length(study$sei), function(i) {
-          list(
-            index = i,
-            selected = (i == 5),
-            name = names(study$sei)[i],
-            sname = gsub("\\W", "_", names(study$sei)[i]),
-            boots = study$sei[[i]]$boots,
-            clusters = lapply(names(study$sei[[i]]$obs), function(n) {
-              list(
-                name = n,
-                size = unname(study$sei[[i]]$obs[n]),
-                pvalue = unname(study$sei[[i]]$pvalues[n])
-              )
-            })
-          )
-        })
-        sei <- list(
-          hasTemplate = hasTemplate,
-          templateExt = templateExt,
-          cfts = cfts
-        )
-      }
-      result$sei <- sei
+      #sei <- NULL
+      #if (study$hasSEI()) {
+        #cfts <- lapply(5:length(study$sei), function(i) {
+          #list(
+            #index = i,
+            #selected = (i == 5),
+            #name = names(study$sei)[i],
+            #sname = gsub("\\W", "_", names(study$sei)[i]),
+            #boots = study$sei[[i]]$boots,
+            #clusters = lapply(names(study$sei[[i]]$obs), function(n) {
+              #list(
+                #name = n,
+                #size = unname(study$sei[[i]]$obs[n]),
+                #pvalue = unname(study$sei[[i]]$pvalues[n])
+              #)
+            #})
+          #)
+        #})
+        #sei <- list(
+          #hasTemplate = hasTemplate,
+          #templateExt = templateExt,
+          #cfts = cfts
+        #)
+      #}
+      #result$sei <- sei
 
+      result <- study$toList()
       response <- makeJSONResponse(result, unbox = TRUE)
       return(response)
     },
@@ -246,22 +240,27 @@ App <- setRefClass(
         return(response)
       }
 
-      ext <- ""
-      glob <- ""
-      if (!is.null(params$type)) {
-        if (params$type == "nifti") {
-          ext <- niftiExt
-          glob <- "*.nii, *.nii.gz"
-        } else if (params$type == "csv") {
-          ext <- datasetExt
-          glob <- "*.csv, *.rds"
-        }
-      }
-
       files <- file.info(list.files(path, full.names = TRUE))
       files$path <- row.names(files)
       files$name <- basename(files$path)
-      files <- files[grepl(ext, files$name, ignore.case = TRUE) | files$isdir,]
+
+      glob <- ""
+      if (params$type == "dir") {
+        files <- files[files$isdir,]
+      } else {
+        ext <- ""
+        if (!is.null(params$type)) {
+          if (params$type == "nifti") {
+            ext <- niftiExt
+            glob <- "*.nii, *.nii.gz"
+          } else if (params$type == "csv") {
+            ext <- datasetExt
+            glob <- "*.csv, *.rds"
+          }
+        }
+        files <- files[grepl(ext, files$name, ignore.case = TRUE) | files$isdir,]
+      }
+
       files <- files[order(!files$isdir, files$name), c("name", "size", "mtime", "isdir", "path")]
       if (nrow(files) > 0) {
         row.names(files) <- 1:nrow(files)
@@ -347,6 +346,7 @@ App <- setRefClass(
       errors$dataset <- validatePath(params$dataset, dir = FALSE, pattern = datasetExt)
       errors$mask <- validatePath(params$mask, dir = FALSE, pattern = niftiExt)
       errors$template <- validatePath(params$template, dir = FALSE, pattern = niftiExt)
+      errors$outdir <- validatePath(params$outdir, dir = TRUE)
 
       if (is.null(errors$dataset)) {
         datasetPath <- normalizePath(params$dataset, mustWork = TRUE)
@@ -379,13 +379,12 @@ App <- setRefClass(
       images <- normalizePath(dataset[[params$outcomeColumn]], mustWork = TRUE)
       mask <- normalizePath(params$mask, mustWork = TRUE)
       template <- normalizePath(params$template, mustWork = TRUE)
+      outdir <- normalizePath(params$outdir, mustWork = TRUE)
       study <<- PBJStudy$new(images = images,
-                             formfull = ~ 1,
-                             formred = NULL,
                              mask = mask,
                              data = dataset,
                              template = template,
-                             .outdir = studyRoot,
+                             outdir = outdir,
                              datasetPath = datasetPath)
 
       response <- makeJSONResponse(list(success = TRUE), unbox = TRUE)

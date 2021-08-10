@@ -153,11 +153,25 @@ class BrowseComponent extends Dialog {
     super(root);
     this.api = api;
 
+    this.emptyElt = this.find('#browse-empty');
+    this.filesElt = this.find('#browse-files');
+    this.tbodyElt = this.filesElt.querySelector('table tbody');
+    this.template = this.find('template#browse-file-row');
+
     // setup parent button event
     let parentButton = this.find('#browse-parent');
     parentButton.addEventListener('click', event => {
       event.preventDefault();
       this.browseParent();
+    });
+
+
+    // setup new folder button
+    this.folderButton = this.find('#browse-folder-button');
+    this.folderButton.addEventListener('click', event => {
+      event.preventDefault();
+      this.folderButton.setAttribute('disabled', '');
+      this.addNewFolderPlaceholder();
     });
 
     // set up cancel button
@@ -176,12 +190,16 @@ class BrowseComponent extends Dialog {
     });
   }
 
-  setName(name) {
+  setName(name, label) {
     this.name = name;
+
+    if (label === undefined) {
+      label = name;
+    }
 
     // set title
     let title = this.find('.modal-title');
-    title.textContent = `Select ${name}`;
+    title.textContent = `Select ${label}`;
   }
 
   setParent(parent) {
@@ -191,11 +209,21 @@ class BrowseComponent extends Dialog {
   setGlob(glob) {
     // set footer
     let footer = this.find('.modal-footer .text');
-    footer.textContent = `File pattern: ${glob}`;
+    if (typeof(glob) === 'string' && glob.length > 0) {
+      footer.textContent = `File pattern: ${glob}`;
+    } else {
+      footer.textContent = '';
+    }
   }
 
   setType(type) {
     this.type = type;
+
+    if (type == 'dir') {
+      utils.removeClass(this.folderButton, 'd-none');
+    } else {
+      utils.addClass(this.folderButton, 'd-none');
+    }
   }
 
   setPath(path) {
@@ -204,22 +232,17 @@ class BrowseComponent extends Dialog {
   }
 
   setFiles(files) {
-    let emptyElt = this.find('#browse-empty');
-    let filesElt = this.find('#browse-files');
-    let tbodyElt = filesElt.querySelector('table tbody');
-
     // clear any existing rows
-    tbodyElt.innerHTML = '';
+    this.tbodyElt.innerHTML = '';
 
     if (files.length == 0) {
-      utils.removeClass(emptyElt, 'd-none');
-      utils.addClass(filesElt, 'd-none');
+      utils.removeClass(this.emptyElt, 'd-none');
+      utils.addClass(this.filesElt, 'd-none');
     } else {
-      utils.addClass(emptyElt, 'd-none');
+      utils.addClass(this.emptyElt, 'd-none');
 
-      let template = this.find('template#browse-file-row');
       for (let file of files) {
-        let frag = template.content.cloneNode(true);
+        let frag = this.template.content.cloneNode(true);
         let row = frag.querySelector('tr');
         row.dataset.type = file.isdir ? 'folder' : 'file';
         row.dataset.path = file.path;
@@ -227,7 +250,7 @@ class BrowseComponent extends Dialog {
         let cells = frag.querySelectorAll('td');
         cells[0].querySelector('i').setAttribute('class', `fa fa-${row.dataset.type}`);
         cells[1].textContent = file.name;
-        cells[2].textContent = file.isdir ? file.size : '';
+        cells[2].textContent = file.isdir ? '' : file.size;
         cells[3].textContent = file.mtime;
         cells.forEach(cell => {
           cell.addEventListener('click', event => {
@@ -235,19 +258,18 @@ class BrowseComponent extends Dialog {
             if (event.detail == 1) {
               this.selectRow(row);
             } else if (event.detail == 2) {
-              this.chooseRow(row);
+              this.chooseRow(row, true);
             }
           });
         })
-        tbodyElt.append(frag);
+        this.tbodyElt.append(frag);
       }
 
-      utils.removeClass(filesElt, 'd-none');
+      utils.removeClass(this.filesElt, 'd-none');
     }
   }
 
   selectRow(row) {
-    console.log('select row:', row);
     let selectedRow = row.parentNode.querySelector('tr.selected');
     utils.removeClass(selectedRow, 'selected');
     if (selectedRow != row) {
@@ -258,17 +280,23 @@ class BrowseComponent extends Dialog {
     }
   }
 
-  chooseRow(row) {
-    console.log('choose row:', row);
-    if (row.dataset.type == 'folder') {
-      this.browse(row.dataset.path);
-    } else {
-      let event = new CustomEvent('chooseFile', {
-        detail: { path: row.dataset.path, parent: this.path }
-      });
-      this.dispatchEvent(event);
-      this.hide();
+  chooseRow(row, dblclick) {
+    if (dblclick === undefined) {
+      dblclick = false;
     }
+
+    if (row.dataset.type == 'folder') {
+      if (this.type != 'dir' || dblclick) {
+        this.browse(row.dataset.path);
+        return;
+      }
+    }
+
+    let event = new CustomEvent('chooseFile', {
+      detail: { path: row.dataset.path, parent: this.path }
+    });
+    this.dispatchEvent(event);
+    this.hide();
   }
 
   browseParent() {
@@ -300,6 +328,26 @@ class BrowseComponent extends Dialog {
         form.insertAdjacentHTML('beforeend', '<i class="fa fa-exclamation-triangle text-danger"></i>');
       }
     );
+  }
+
+  addNewFolderPlaceholder() {
+    let frag = this.template.content.cloneNode(true);
+    let row = frag.querySelector('tr');
+    let cells = row.querySelectorAll('td');
+    let input = document.createElement('input');
+    input.setAttribute('type', 'text');
+    input.value = 'New folder';
+
+    let mtime = new Date();
+    mtime = mtime.toISOString();
+    mtime = mtime.replace(/T(\d+:\d+:\d+).+$/, ' $1'); // FIXME
+
+    cells[0].querySelector('i').setAttribute('class', `fa fa-folder`);
+    cells[1].innerHTML = '';
+    cells[1].appendChild(input);
+    cells[2].textContent = '';
+    cells[3].textContent = mtime;
+    this.tbodyElt.insertAdjacentElement('afterbegin', row);
   }
 }
 
@@ -462,7 +510,7 @@ class WelcomeComponent extends Component {
     if (typeof(this.browsePath) !== 'string') {
       throw new Error('browsePath has not been set!');
     }
-    let callback;
+    let callback, label;
     switch (name) {
       case 'dataset':
         callback = this.checkDataset;
@@ -473,10 +521,14 @@ class WelcomeComponent extends Component {
       case 'template':
         callback = this.setTemplatePath;
         break;
+      case 'outdir':
+        callback = this.setOutdir;
+        label = "output directory"
+        break;
     }
 
     let modal = this.browseComponent;
-    modal.setName(name);
+    modal.setName(name, label);
     modal.setType(type);
 
     // remove old listener
@@ -517,6 +569,11 @@ class WelcomeComponent extends Component {
   setTemplatePath(path, parentPath) {
     this.setBrowsePath(parentPath);
     this.find('#study-template').value = path;
+  }
+
+  setOutdir(path, parentPath) {
+    this.setBrowsePath(parentPath);
+    this.find('#study-outdir').value = path;
   }
 
   checkForm() {
