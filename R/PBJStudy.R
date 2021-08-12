@@ -47,8 +47,7 @@ PBJStudy <- setRefClass(
           na = if (num) sum(is.na(col)) else NULL,
           naPct = naPct,
           naWarning = (naPct >= 33 && naPct < 66),
-          naError = (naPct >= 66),
-          isWeightsColumn = (weightsColumn == name)
+          naError = (naPct >= 66)
         )
       })
     },

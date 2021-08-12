@@ -21,6 +21,31 @@ let utils = {
 
   showTab: function(elt) {
     $(elt).tab('show');
+  },
+
+  formatDateTime: function(date) {
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    if (month < 10) {
+      month = `0${month}`;
+    }
+    let day = date.getDate();
+    if (day < 10) {
+      day = `0${day}`;
+    }
+    let hours = date.getHours();
+    if (hours < 10) {
+      hours = `0${hours}`;
+    }
+    let minutes = date.getMinutes();
+    if (minutes < 10) {
+      minutes = `0${minutes}`;
+    }
+    let seconds = date.getSeconds();
+    if (seconds < 10) {
+      seconds = `0${seconds}`;
+    };
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
 };
 
@@ -55,6 +80,11 @@ class API {
   browse(type, path, complete, failure) {
     let data = { type: type, path: path };
     this.request('POST', 'browse', data, complete, failure);
+  }
+
+  createFolder(path, name, complete, failure) {
+    let data = { path: path, name: name };
+    this.request('POST', 'createFolder', data, complete, failure);
   }
 
   checkDataset(path, complete, failure) {
@@ -155,6 +185,7 @@ class BrowseComponent extends Dialog {
 
     this.emptyElt = this.find('#browse-empty');
     this.filesElt = this.find('#browse-files');
+    this.sizeElt = this.filesElt.querySelector('table thead th.size');
     this.tbodyElt = this.filesElt.querySelector('table tbody');
     this.template = this.find('template#browse-file-row');
 
@@ -221,8 +252,10 @@ class BrowseComponent extends Dialog {
 
     if (type == 'dir') {
       utils.removeClass(this.folderButton, 'd-none');
+      utils.addClass(this.sizeElt, 'd-none');
     } else {
       utils.addClass(this.folderButton, 'd-none');
+      utils.removeClass(this.sizeElt, 'd-none');
     }
   }
 
@@ -240,6 +273,7 @@ class BrowseComponent extends Dialog {
       utils.addClass(this.filesElt, 'd-none');
     } else {
       utils.addClass(this.emptyElt, 'd-none');
+      utils.removeClass(this.filesElt, 'd-none');
 
       for (let file of files) {
         let frag = this.template.content.cloneNode(true);
@@ -250,7 +284,11 @@ class BrowseComponent extends Dialog {
         let cells = frag.querySelectorAll('td');
         cells[0].querySelector('i').setAttribute('class', `fa fa-${row.dataset.type}`);
         cells[1].textContent = file.name;
-        cells[2].textContent = file.isdir ? '' : file.size;
+        if (this.type === 'dir') {
+          utils.addClass(cells[2], 'd-none');
+        } else {
+          cells[2].textContent = file.isdir ? '' : file.size;
+        }
         cells[3].textContent = file.mtime;
         cells.forEach(cell => {
           cell.addEventListener('click', event => {
@@ -307,6 +345,13 @@ class BrowseComponent extends Dialog {
   }
 
   browse(path) {
+    if (path === undefined) {
+      if (this.path !== undefined) {
+        path = this.path;
+      } else {
+        throw new Error('path is missing');
+      }
+    }
     let warning = this.find('form i.fa-exclamation-triangle');
     if (warning) {
       warning.remove();
@@ -321,6 +366,7 @@ class BrowseComponent extends Dialog {
         this.setFiles(data.files);
         this.show();
         this.selectButton.setAttribute('disabled', '');
+        this.folderButton.removeAttribute('disabled');
       },
       // request failed
       () => {
@@ -331,23 +377,50 @@ class BrowseComponent extends Dialog {
   }
 
   addNewFolderPlaceholder() {
+    utils.addClass(this.emptyElt, 'd-none');
+    utils.removeClass(this.filesElt, 'd-none');
+
     let frag = this.template.content.cloneNode(true);
     let row = frag.querySelector('tr');
     let cells = row.querySelectorAll('td');
     let input = document.createElement('input');
     input.setAttribute('type', 'text');
+    input.setAttribute('class', 'border');
     input.value = 'New folder';
 
-    let mtime = new Date();
-    mtime = mtime.toISOString();
-    mtime = mtime.replace(/T(\d+:\d+:\d+).+$/, ' $1'); // FIXME
+    let mtime = utils.formatDateTime(new Date());
 
     cells[0].querySelector('i').setAttribute('class', `fa fa-folder`);
     cells[1].innerHTML = '';
     cells[1].appendChild(input);
-    cells[2].textContent = '';
+    if (this.type === 'dir') {
+      utils.addClass(cells[2], 'd-none');
+    } else {
+      cells[2].textContent = '';
+    }
     cells[3].textContent = mtime;
     this.tbodyElt.insertAdjacentElement('afterbegin', row);
+
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        row.remove();
+        this.folderButton.removeAttribute('disabled');
+      } else if (event.key == 'Enter') {
+        event.stopPropagation();
+        let value = event.target.value;
+        if (value.length > 0) {
+          let customEvent = new CustomEvent('createFolder', {
+            detail: {
+              path: this.path,
+              name: value
+            }
+          });
+          this.dispatchEvent(customEvent);
+        }
+      }
+    });
+    input.focus();
   }
 }
 
@@ -469,6 +542,10 @@ class WelcomeComponent extends Component {
       });
     });
 
+    this.browseComponent.addEventListener('createFolder', event => {
+      this.createFolder(event);
+    });
+
     this.welcomeForm.addEventListener('submit', event => {
       event.preventDefault();
 
@@ -543,6 +620,20 @@ class WelcomeComponent extends Component {
     modal.addEventListener('chooseFile', this.chooseFileListener);
 
     modal.browse(this.browsePath);
+  }
+
+  createFolder(event) {
+    this.api.createFolder(event.detail.path, event.detail.name,
+      // complete
+      (result, status) => {
+        if (status == 200) {
+          this.browseComponent.browse();
+        }
+      },
+      // failure
+      () => {
+      }
+    );
   }
 
   checkDataset(path, parentPath) {

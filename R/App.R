@@ -32,6 +32,7 @@ App <- setRefClass(
         list(method = "GET", path = "^/api/study$", handler = .self$getStudy),
         list(method = "GET", path = "^/api/saveStudy$", handler = .self$saveStudy),
         list(method = "POST", path = "^/api/browse$", handler = .self$browse),
+        list(method = "POST", path = "^/api/createFolder", handler = .self$createFolder),
         list(method = "POST", path = "^/api/checkDataset$", handler = .self$checkDataset),
         list(method = "POST", path = "^/api/createStudy$", handler = .self$createStudy),
         list(method = "GET", path = "^/api/studyImage/", handler = .self$studyImage),
@@ -66,7 +67,7 @@ App <- setRefClass(
             return(response)
           }
 
-          result <- try(route$handler(req, query))
+          result <- try(withCallingHandlers(route$handler(req, query), error = function(e) print(sys.calls())))
           if (inherits(result, 'try-error')) {
             cat(capture.output(print(result)), file=stderr())
             result <- makeErrorResponse(list(error = as.character(result)))
@@ -275,6 +276,43 @@ App <- setRefClass(
 
       # setup the response
       response <- makeJSONResponse(data, unbox = TRUE)
+      return(response)
+    },
+
+    createFolder = function(req, query) {
+      result <- parsePost(req)
+      if (inherits(result, 'error')) {
+        # parsePost returned an error response
+        return(result)
+      }
+
+      params <- result
+      errors <- NULL
+      if (!is.list(params)) {
+        errors <- "post data must be a list"
+      } else if (is.null(params$path)) {
+        errors <- "path is required"
+      } else if (is.null(params$name)) {
+        errors <- "name is required"
+      } else {
+        path <- params$path
+        errors <- validatePath(path, dir = TRUE)
+        if (is.null(errors)) {
+          fullPath <- file.path(path, params$name)
+          errors <- validatePath(fullPath, type = 'absent')
+        }
+      }
+      if (!is.null(errors)) {
+        response <- makeErrorResponse(list(path = errors))
+        return(response)
+      }
+
+      result <- tryCatch(dir.create(fullPath), warning = function(x) x)
+      if (isTRUE(result)) {
+        response <- makeJSONResponse(list(success = TRUE), unbox = TRUE)
+      } else {
+        response <- makeJSONResponse(list(error = result$message), unbox = TRUE, status = 400L)
+      }
       return(response)
     },
 
@@ -994,7 +1032,8 @@ App <- setRefClass(
       return(result)
     },
 
-    validatePath = function(path, dir = FALSE, pattern = NULL) {
+    validatePath = function(path, dir = FALSE, pattern = NULL, type = c("present", "absent")) {
+      type <- match.arg(type)
       errors <- NULL
       if (is.null(path)) {
         errors <- "is required"
@@ -1004,20 +1043,26 @@ App <- setRefClass(
         errors <- "must have only 1 value"
       } else if (!nzchar(path)) {
         errors <- "must not be empty"
-      } else if (!file.exists(path)) {
-        errors <- "does not exist"
-      } else if (file.info(path)$isdir != dir) {
-        if (dir) {
-          errors <- "must be a directory"
-        } else {
-          errors <- "must be a regular file"
-        }
       } else if (!is.null(pattern) && !grepl(pattern, path, ignore.case = TRUE)) {
         errors <- paste0("must match pattern: ", pattern)
-      } else {
-        result <- try(normalizePath(path, mustWork = TRUE))
-        if (inherits(result, 'try-error')) {
-          errors <- "is invalid"
+      } else if (type == "absent") {
+        if (file.exists(path)) {
+          errors <- "already exists"
+        }
+      } else if (type == "present") {
+        if (!file.exists(path)) {
+          errors <- "does not exist"
+        } else if (file.info(path)$isdir != dir) {
+          if (dir) {
+            errors <- "must be a directory"
+          } else {
+            errors <- "must be a regular file"
+          }
+        } else {
+          result <- try(normalizePath(path, mustWork = TRUE))
+          if (inherits(result, 'try-error')) {
+            errors <- "is invalid"
+          }
         }
       }
       return(errors)
