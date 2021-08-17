@@ -46,6 +46,17 @@ let utils = {
       seconds = `0${seconds}`;
     };
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  },
+
+  basename: function(filename) {
+    let parts;
+    if (filename.match(/^[a-zA-Z]:\\/)) {
+      // windows filename
+      parts = filename.split('\\');
+    } else {
+      parts = filename.split('/');
+    }
+    return parts[parts.length-1];
   }
 };
 
@@ -671,7 +682,7 @@ class WelcomeComponent extends Component {
     // check manually because readonly inputs aren't validated properly natively
     let fd = new FormData(this.welcomeForm);
     let ok = true;
-    for (let key of ['dataset', 'outcomeColumn', 'mask', 'template']) {
+    for (let key of ['dataset', 'outcomeColumn', 'mask', 'template', 'outdir']) {
       let value = fd.get(key);
       if (value === null || value === '') {
         ok = false;
@@ -691,18 +702,18 @@ class StudyComponent extends Component {
     super(root);
     this.api = api;
 
-    this.select = this.find('#study-data-row');
+    this.select = this.find('#study-image');
 
     this.setup();
   }
 
   setup() {
     this.select.addEventListener('input', event => {
-      this.emitDataRowChange();
+      this.emitImageChange();
     });
   }
 
-  getDataRow() {
+  getImage() {
     let option = this.select.selectedOptions[0];
     let result = {
       template: option.dataset.template,
@@ -711,36 +722,39 @@ class StudyComponent extends Component {
     return result;
   }
 
-  emitDataRowChange() {
-    let data = this.getDataRow();
-    let event = new CustomEvent('dataRowChange', { detail: data });
+  emitImageChange() {
+    let data = this.getImage();
+    let event = new CustomEvent('imageChange', { detail: data });
     this.dispatchEvent(event);
   }
 
   setStudy(study) {
+    this.study = study;
+
     // show dataset path
     this.find('#study-dataset-path').textContent = study.datasetPath;
 
-    // setup data row options
-    let select = this.find('#study-data-row');
-    select.innerHTML = '';
-    for (let dataRow of study.dataRows) {
-      let option = document.createElement('option');
-      option.setAttribute('value', dataRow.index);
-      if (dataRow.selected) {
-        option.setAttribute('selected', '');
-      }
-
-      option.dataset.outcome = this.api.makeURL(['studyImage', 'outcome', `${dataRow.index}${dataRow.outcomeExt}`]).toString();
-      if (dataRow.hasTemplate) {
-        option.dataset.template = this.api.makeURL(['studyImage', `template${dataRow.templateExt}`]).toString();
-      }
-
-      option.textContent = dataRow.outcomeBase;
-      select.appendChild(option);
+    // setup image options
+    let template;
+    if (study.template) {
+      template = utils.basename(study.template);
     }
 
-    this.emitDataRowChange();
+    let select = this.find('#study-image');
+    select.innerHTML = '';
+    this.study.images.forEach((image, index) => {
+      let option = document.createElement('option');
+      let basename = utils.basename(image);
+      option.dataset.outcome = this.api.makeURL(['studyImage', 'outcome', index+1, basename]).toString();
+      if (this.study.template) {
+        option.dataset.template = this.api.makeURL(['studyImage', 'template', template]).toString();
+      }
+
+      option.textContent = basename;
+      select.appendChild(option);
+    });
+
+    this.emitImageChange();
   }
 }
 
@@ -757,14 +771,14 @@ class StudyVisualizeComponent extends PapayaComponent {
     papaya.Container.addViewer(this.papayaName);
   }
 
-  showDataRow(dataRow) {
+  showImage(data) {
     let params = [];
     params["noNewFiles"] = true;
     params["images"] = [];
-    if (dataRow.template) {
-      params["images"].push(dataRow.template);
+    if (data.template) {
+      params["images"].push(data.template);
     }
-    params["images"].push(dataRow.outcome);
+    params["images"].push(data.outcome);
 
     let cIndex = this.getPapayaIndex();
     papaya.Container.resetViewer(cIndex, params);
@@ -1079,8 +1093,8 @@ class MainComponent extends Component {
 
     this.studyVisComponent = new StudyVisualizeComponent(
       this.find('#visualize-study'), api);
-    this.studyComponent.addEventListener('dataRowChange', event => {
-      this.studyVisComponent.showDataRow(event.detail);
+    this.studyComponent.addEventListener('imageChange', event => {
+      this.studyVisComponent.showImage(event.detail);
     });
 
     this.modelComponent = new ModelComponent(this.find('#model'), api);

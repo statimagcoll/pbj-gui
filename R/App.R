@@ -437,68 +437,58 @@ App <- setRefClass(
 
       filename <- NULL
       candidate <- NULL
-      ext <- NULL
       if (parts[1] == "outcome") {
-        type <- parts[1]
-        md <- regexpr("^([0-9]+)(\\.nii(\\.gz)?)$", parts[2], ignore.case = TRUE, perl = TRUE)
-        if (md >= 0) {
-          # R's regex support is terrible
-          index <- as.integer(substr(parts[2], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1))
-          ext <- substr(parts[2], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
-
-          # find candidate file
-          if (index >= 1 && index <= length(study$images)) {
-            candidate <- study$images[index]
-          }
+        index <- as.integer(parts[2])
+        filename <- parts[3]
+        if (!is.na(index) && filename == basename(study$images[index])) {
+          candidate <- study$images[index]
         }
-      } else if (parts[1] == "sei") {
-        if (study$hasSEI()) {
-          cftName <- parts[2]
-          imageName <- parts[3]
-          if (cftName %in% names(study$sei)) {
-            cft <- study$sei[[cftName]]
-            md <- regexpr("^(clustermap|pmap)(\\.nii(\\.gz)?)$", imageName, ignore.case = TRUE, perl = TRUE)
-            if (md >= 0) {
-              type <- substr(imageName, attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
-              ext <- substr(imageName, attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
-
-              # find candidate file
-              if (type == "clustermap") {
-                candidate <- study$sei[[cftName]]$clustermapfile
-              } else if (type == "pmap") {
-                candidate <- study$sei[[cftName]]$pmapfile
-              }
-            }
-          }
+      } else if (parts[1] == "template") {
+        filename <- parts[2]
+        if (!is.null(study$template) && filename == basename(study$template)) {
+          candidate <- study$template
         }
-      } else {
-        md <- regexpr("^(template|mask|statMapStat|statMapCoef)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
-        if (md >= 0) {
-          type <- substr(parts[1], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
-          ext <- substr(parts[1], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
-
-          if (type == "template") {
-            candidate <- study$template
-          } else if (type == "mask") {
-            candidate <- study$mask
-          } else if (type == "statMapStat" && !is.null(study$statMap)) {
-            candidate <- study$statMap$stat
-          } else if (type == "statMapCoef" && !is.null(study$statMap)) {
-            candidate <- study$statMap$coef
-          }
+      } else if (parts[1] == "mask") {
+        filename <- parts[2]
+        if (filename == basename(study$mask)) {
+          candidate <- study$mask
         }
+      #} else if (parts[1] == "sei") {
+        #if (study$hasSEI()) {
+          #cftName <- parts[2]
+          #imageName <- parts[3]
+          #if (cftName %in% names(study$sei)) {
+            #cft <- study$sei[[cftName]]
+            #md <- regexpr("^(clustermap|pmap)(\\.nii(\\.gz)?)$", imageName, ignore.case = TRUE, perl = TRUE)
+            #if (md >= 0) {
+              #type <- substr(imageName, attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
+              #ext <- substr(imageName, attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
+
+              ## find candidate file
+              #if (type == "clustermap") {
+                #candidate <- study$sei[[cftName]]$clustermapfile
+              #} else if (type == "pmap") {
+                #candidate <- study$sei[[cftName]]$pmapfile
+              #}
+            #}
+          #}
+        #}
+      #} else {
+        #md <- regexpr("^(statMapStat|statMapCoef)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
+        #if (md >= 0) {
+          #type <- substr(parts[1], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
+          #ext <- substr(parts[1], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
+
+          #if (type == "statMapStat" && !is.null(study$statMap)) {
+            #candidate <- study$statMap$stat
+          #} else if (type == "statMapCoef" && !is.null(study$statMap)) {
+            #candidate <- study$statMap$coef
+          #}
+        #}
       }
 
-      # make sure file extension matches
-      if (!is.null(candidate) && !is.null(ext)) {
-        ext <- paste0(ext, '$')
-        if (grepl(ext, candidate, ignore.case = TRUE)) {
-          filename <- candidate
-        }
-      }
-
-      if (!is.null(filename)) {
-        return(makeFileResponse(filename))
+      if (!is.null(candidate) && file.exists(candidate)) {
+        return(makeFileResponse(candidate))
       } else {
         return(makeTextResponse("Not found", 404L))
       }
