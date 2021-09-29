@@ -60,7 +60,9 @@ let utils = {
   }
 };
 
-class API {
+let pbj = {};
+
+pbj.API = class {
   constructor(token) {
     this.token = token;
   }
@@ -138,11 +140,14 @@ class API {
       xhr.send();
     }
   }
-}
+};
 
-class Component extends EventTarget {
+pbj.Component = class extends EventTarget {
   constructor(root) {
     super();
+    if (root === null || root === undefined) {
+      throw new Error('root is required');
+    }
     this.root = root;
   }
 
@@ -161,9 +166,9 @@ class Component extends EventTarget {
   findAll(selector) {
     return this.root.querySelectorAll(selector);
   }
-}
+};
 
-class PapayaComponent extends Component {
+pbj.PapayaComponent = class extends pbj.Component {
 
   getPapayaIndex(parentName) {
     if (typeof(this.papayaName) !== 'string') {
@@ -177,9 +182,9 @@ class PapayaComponent extends Component {
     }
     return -1;
   }
-}
+};
 
-class Dialog extends Component {
+pbj.Dialog = class extends pbj.Component {
   show() {
     utils.showModal(this.root);
   }
@@ -187,9 +192,9 @@ class Dialog extends Component {
   hide() {
     utils.hideModal(this.root);
   }
-}
+};
 
-class BrowseComponent extends Dialog {
+pbj.BrowseComponent = class extends pbj.Dialog {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -433,9 +438,9 @@ class BrowseComponent extends Dialog {
     });
     input.focus();
   }
-}
+};
 
-class CheckDatasetComponent extends Dialog {
+pbj.CheckDatasetComponent = class extends pbj.Dialog {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -527,15 +532,15 @@ class CheckDatasetComponent extends Dialog {
       }
     );
   }
-}
+};
 
-class WelcomeComponent extends Component {
+pbj.WelcomeComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
 
-    this.browseComponent = new BrowseComponent(this.find('#browse-modal'), api);
-    this.checkDatasetComponent = new CheckDatasetComponent(
+    this.browseComponent = new pbj.BrowseComponent(this.find('#browse-modal'), api);
+    this.checkDatasetComponent = new pbj.CheckDatasetComponent(
       this.find('#check-dataset-modal'), api);
 
     this.welcomeForm = this.find('#welcome-form');
@@ -695,9 +700,9 @@ class WelcomeComponent extends Component {
       this.submitButton.setAttribute('disabled', '');
     }
   }
-}
+};
 
-class StudyComponent extends Component {
+pbj.StudyComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -756,9 +761,9 @@ class StudyComponent extends Component {
 
     this.emitImageChange();
   }
-}
+};
 
-class StudyVisualizeComponent extends PapayaComponent {
+pbj.StudyVisualizeComponent = class extends pbj.PapayaComponent {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -783,9 +788,9 @@ class StudyVisualizeComponent extends PapayaComponent {
     let cIndex = this.getPapayaIndex();
     papaya.Container.resetViewer(cIndex, params);
   }
-}
+};
 
-class ModelComponent extends Component {
+pbj.ModelComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -803,24 +808,44 @@ class ModelComponent extends Component {
   }
 
   setStudy(study) {
-    // configure model form
+    // populate weights columns
+    let select = this.find('#model-weights-column');
+    select.innerHTML = '<option></option>';
+
+    let option;
+    for (let varInfo of study.varInfo) {
+      if (!varInfo.num) {
+        continue;
+      }
+
+      option = document.createElement('option');
+      option.textContent = varInfo.name;
+      select.appendChild(option);
+    }
+
+    // populate model form
+    let model = study.model;
+    if (!model) {
+      return;
+    }
+
     this.form.querySelectorAll('input, select').forEach(elt => {
-      if (!(elt.name in study)) {
+      if (!(elt.name in model)) {
         return;
       }
       if (elt.tagName === 'INPUT') {
         switch (elt.type) {
           case 'text':
-            elt.value = study[elt.name];
+            elt.value = model[elt.name];
             break;
           case 'checkbox':
-            elt.checked = study[elt.name];
+            elt.checked = model[elt.name];
             break;
         }
       } else if (elt.tagName === 'SELECT') {
         for (let i = 0; i < elt.options.length; i++) {
           let option = elt.options[i];
-          if (option.value == study[elt.name]) {
+          if (option.value == model[elt.name]) {
             option.setAttribute('selected', '');
             break;
           }
@@ -908,9 +933,9 @@ class ModelComponent extends Component {
       }
     );
   }
-}
+};
 
-class ModelVisualizeComponent extends Component {
+pbj.ModelVisualizeComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -992,9 +1017,9 @@ class ModelVisualizeComponent extends Component {
     utils.addClass(this.find('#visualize-model-vars'), 'd-none')
     utils.removeClass(div, 'd-none')
   }
-}
+};
 
-class StatMapComponent extends Component {
+pbj.StatMapComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -1070,9 +1095,9 @@ class StatMapComponent extends Component {
 
   setStatMap(statMap) {
   }
-}
+};
 
-class StatMapVisualizeComponent extends PapayaComponent {
+pbj.StatMapVisualizeComponent = class extends pbj.PapayaComponent {
   constructor(root, api) {
     super(root);
     this.api = api;
@@ -1082,28 +1107,28 @@ class StatMapVisualizeComponent extends PapayaComponent {
   setStatMap(statMap) {
     //papaya.Container.addViewer(this.papayaName);
   }
-}
+};
 
-class MainComponent extends Component {
+pbj.MainComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
 
-    this.studyComponent = new StudyComponent(this.find('#study'), api);
+    this.studyComponent = new pbj.StudyComponent(this.find('#study'), api);
 
-    this.studyVisComponent = new StudyVisualizeComponent(
+    this.studyVisComponent = new pbj.StudyVisualizeComponent(
       this.find('#visualize-study'), api);
     this.studyComponent.addEventListener('imageChange', event => {
       this.studyVisComponent.showImage(event.detail);
     });
 
-    this.modelComponent = new ModelComponent(this.find('#model'), api);
+    this.modelComponent = new pbj.ModelComponent(this.find('#model'), api);
     this.modelComponent.addEventListener('statMapCreated', event => {
       this.setStatMap(event.detail);
       this.showTab(this.find('#statmap-tab'));
     });
 
-    this.modelVisComponent = new ModelVisualizeComponent(
+    this.modelVisComponent = new pbj.ModelVisualizeComponent(
       this.find('#visualize-model'), api);
     this.modelVisComponent.addEventListener('addVarToFullFormula', event => {
       this.modelComponent.addVarToFullFormula(event.detail);
@@ -1112,9 +1137,9 @@ class MainComponent extends Component {
       this.modelComponent.addVarToReducedFormula(event.detail);
     });
 
-    this.statMapComponent = new StatMapComponent(this.find('#statmap'), api);
+    this.statMapComponent = new pbj.StatMapComponent(this.find('#statmap'), api);
 
-    this.statMapVisComponent = new StatMapVisualizeComponent(
+    this.statMapVisComponent = new pbj.StatMapVisualizeComponent(
       this.find('#visualize-statmap'), api
     );
 
@@ -1174,14 +1199,14 @@ class MainComponent extends Component {
     this.currentVisComponent = vis;
     vis.show();
   }
-}
+};
 
-class AppComponent extends Component {
+pbj.AppComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
     this.api = api;
-    this.welcomeComponent = new WelcomeComponent(this.find('#welcome'), api);
-    this.mainComponent = new MainComponent(this.find('#main'), api);
+    this.welcomeComponent = new pbj.WelcomeComponent(this.find('#welcome'), api);
+    this.mainComponent = new pbj.MainComponent(this.find('#main'), api);
 
     this.welcomeComponent.addEventListener('studyCreated', event => {
       this.getStudy();
@@ -1211,15 +1236,7 @@ class AppComponent extends Component {
     this.welcomeComponent.hide();
     this.mainComponent.show();
   }
-}
-
-$(function() {
-  let windowUrl = new URL(window.location.href);
-  let token = windowUrl.searchParams.get("token");
-
-  let api = new API(token);
-  let app = new AppComponent(document.querySelector('#app'), api);
-});
+};
 
 // TODO:
 //

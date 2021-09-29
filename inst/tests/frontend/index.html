@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mocha Tests</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./mocha.css" />
+  </head>
+  <body>
+    <div id="mocha"></div>
+
+    <script src="./chai.js"></script>
+    <script src="./mocha.js"></script>
+    <script src="./sinon.js"></script>
+
+    <script class="mocha-init">
+      mocha.setup('tdd');
+      mocha.checkLeaks();
+    </script>
+
+    <!-- load dependencies -->
+    <script src="../../webroot/jquery.min.js"></script>
+    <script src="../../webroot/popper.min.js"></script>
+    <script src="../../webroot/bootstrap/js/bootstrap.js"></script>
+    <script src="../../webroot/papaya/papaya.js"></script>
+
+    <!-- load pbj -->
+    <script src="../../webroot/pbj-2.js"></script>
+
+    <script src="./test.js"></script>
+    <script class="mocha-exec">
+      var assert = chai.assert;
+      mocha.run();
+    </script>
+  </body>
+</html>
