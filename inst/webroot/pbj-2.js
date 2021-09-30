@@ -563,36 +563,10 @@ pbj.WelcomeComponent = class extends pbj.Component {
     });
 
     this.welcomeForm.addEventListener('submit', event => {
-      event.preventDefault();
-
-      let data = {};
-      let fd = new FormData(this.welcomeForm);
-      for (let pair of fd) {
-        data[pair[0]] = pair[1];
-      }
-
-      this.api.createStudy(data, (result, status) => {
-        if (status !== 200) {
-          console.error(result, status);
-          return;
-        }
-
-        let event = new CustomEvent('studyCreated', { detail: result });
-        this.dispatchEvent(event);
-
-        /*
-        $('#study').html(data.study);
-        $('#model').html(data.model);
-        $('#welcome').fadeOut('fast', function() {
-          $('#main').fadeIn('fast', initMain);
-        });
-        //$('#visualize-content').html(data.visualize);
-        //$('#model-content').html(data.model);
-        //$('#visualize-link').utils.removeClass('disabled').tab('show');
-        //$('#model-link').utils.removeClass('disabled');
-        */
-      });
+      this.submitForm(event);
     });
+
+    this.checkForm();
   }
 
   setBrowsePath(path) {
@@ -631,7 +605,6 @@ pbj.WelcomeComponent = class extends pbj.Component {
 
     this.chooseFileListener = (event) => {
       callback.call(this, event.detail.path, event.detail.parent);
-      this.checkForm();
     };
     modal.addEventListener('chooseFile', this.chooseFileListener);
 
@@ -666,21 +639,25 @@ pbj.WelcomeComponent = class extends pbj.Component {
     this.find('#study-dataset').value = path;
     this.find('#study-dataset-outcome').value = outcomeColumn;
     utils.removeClass(this.find('#study-dataset-columns'), 'd-none');
+    this.checkForm();
   }
 
   setMaskPath(path, parentPath) {
     this.setBrowsePath(parentPath);
     this.find('#study-mask').value = path;
+    this.checkForm();
   }
 
   setTemplatePath(path, parentPath) {
     this.setBrowsePath(parentPath);
     this.find('#study-template').value = path;
+    this.checkForm();
   }
 
   setOutdir(path, parentPath) {
     this.setBrowsePath(parentPath);
     this.find('#study-outdir').value = path;
+    this.checkForm();
   }
 
   checkForm() {
@@ -699,6 +676,44 @@ pbj.WelcomeComponent = class extends pbj.Component {
     } else {
       this.submitButton.setAttribute('disabled', '');
     }
+  }
+
+  submitForm(event) {
+    event.preventDefault();
+
+    let data = {};
+    let fd = new FormData(this.welcomeForm);
+    for (let pair of fd) {
+      data[pair[0]] = pair[1];
+    }
+
+    this.api.createStudy(data,
+      // complete
+      (result, status) => {
+        if (status !== 200) {
+          console.error(result, status);
+          return;
+        }
+
+        let event = new CustomEvent('studyCreated', { detail: result });
+        this.dispatchEvent(event);
+
+        /*
+        $('#study').html(data.study);
+        $('#model').html(data.model);
+        $('#welcome').fadeOut('fast', function() {
+          $('#main').fadeIn('fast', initMain);
+        });
+        //$('#visualize-content').html(data.visualize);
+        //$('#model-content').html(data.model);
+        //$('#visualize-link').utils.removeClass('disabled').tab('show');
+        //$('#model-link').utils.removeClass('disabled');
+        */
+      },
+      // failed
+      () => {
+      }
+    );
   }
 };
 
