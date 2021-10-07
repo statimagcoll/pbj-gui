@@ -2,7 +2,7 @@ suite("AppComponent", function() {
   setup(function() {
     this.root = document.createElement('div');
     this.root.innerHTML = `
-      <div id="main">
+      <div id="app">
       </div>
     `;
     this.api = {

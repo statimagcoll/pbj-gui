@@ -1163,6 +1163,9 @@ pbj.MainComponent = class extends pbj.Component {
     this.setup();
   }
 
+  /**
+   * @private
+   */
   setup() {
     // add url with token parameter to saveStudy button
     let saveButton = this.find('#save-button');
@@ -1180,6 +1183,9 @@ pbj.MainComponent = class extends pbj.Component {
     this.showTab(this.find('#study-tab'));
   }
 
+  /**
+   * @public
+   */
   setStudy(study) {
     this.studyComponent.setStudy(study);
     this.modelComponent.setStudy(study);
@@ -1187,11 +1193,17 @@ pbj.MainComponent = class extends pbj.Component {
     this.statMapComponent.setStudy(study);
   }
 
+  /**
+   * @private
+   */
   setStatMap(statMap) {
     utils.removeClass(this.find('#statmap-tab'), 'disabled');
     this.statMapVisComponent.setStatMap(statMap);
   }
 
+  /**
+   * @private
+   */
   showTab(link) {
     utils.showTab(link);
 
