@@ -727,12 +727,18 @@ pbj.StudyComponent = class extends pbj.Component {
     this.setup();
   }
 
+  /**
+   * @private
+   */
   setup() {
-    this.select.addEventListener('input', event => {
+    this.select.addEventListener('change', event => {
       this.emitImageChange();
     });
   }
 
+  /**
+   * @private
+   */
   getImage() {
     let option = this.select.selectedOptions[0];
     let result = {
@@ -742,12 +748,18 @@ pbj.StudyComponent = class extends pbj.Component {
     return result;
   }
 
+  /**
+   * @private
+   */
   emitImageChange() {
     let data = this.getImage();
     let event = new CustomEvent('imageChange', { detail: data });
     this.dispatchEvent(event);
   }
 
+  /**
+   * @public
+   */
   setStudy(study) {
     this.study = study;
 
