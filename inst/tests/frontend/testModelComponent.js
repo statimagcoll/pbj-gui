@@ -167,4 +167,34 @@ suite("ModelComponent", function() {
       assert.deepEqual(statMap, call.args[0].detail);
     });
   });
+
+  test('addVarToFullFormula creates new formula when empty', function() {
+    let comp = new pbj.ModelComponent(this.root, this.api);
+    let input = this.root.querySelector('#model-formfull');
+    comp.addVarToFullFormula({ name: 'foo' });
+    assert.equal('~ foo', input.value);
+  });
+
+  test('addVarToFullFormula adds variable interaction to existing formula', function() {
+    let comp = new pbj.ModelComponent(this.root, this.api);
+    let input = this.root.querySelector('#model-formfull');
+    input.value = '~ foo';
+    comp.addVarToFullFormula({ name: 'bar' });
+    assert.equal('~ foo + bar', input.value);
+  });
+
+  test('addVarToReducedFormula creates new formula when ~ 1', function() {
+    let comp = new pbj.ModelComponent(this.root, this.api);
+    let input = this.root.querySelector('#model-formred');
+    comp.addVarToReducedFormula({ name: 'foo' });
+    assert.equal('~ foo', input.value);
+  });
+
+  test('addVarToReducedFormula adds variable interaction to existing formula', function() {
+    let comp = new pbj.ModelComponent(this.root, this.api);
+    let input = this.root.querySelector('#model-formred');
+    input.value = '~ foo';
+    comp.addVarToReducedFormula({ name: 'bar' });
+    assert.equal('~ foo + bar', input.value);
+  });
 });
