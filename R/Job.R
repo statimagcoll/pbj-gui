@@ -22,7 +22,7 @@ Job <- setRefClass(
       return(readChar(logFile, file.info(logFile)$size))
     },
     finalize = function() {
-      result <- try(rx$get_result())
+      result <- try(rx$get_result(), silent = TRUE)
       unlink(logFile)
       return(result)
     }
