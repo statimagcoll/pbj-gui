@@ -372,6 +372,7 @@ App <- setRefClass(
       return(response)
     },
 
+    # handler for POST /api/createStudy
     createStudy = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
@@ -629,16 +630,21 @@ App <- setRefClass(
         return(makeErrorResponse(errors))
       }
 
-      study$formfull <<- formfull
-      study$formred <<- formred
-      study$weightsColumn <<- weightsColumn
-      study$invertedWeights <<- invertedWeights
-      study$robust <<- robust
-      study$transform <<- transform
-      study$zeros <<- zeros
-      study$HC3 <<- HC3
+      model <- PBJModel$new(images = study$images,
+                            formfull = formfull,
+                            formred = formred,
+                            mask = study$mask,
+                            weightsColumn = weightsColumn,
+                            invertedWeights = invertedWeights,
+                            template = study$template,
+                            robust = robust,
+                            transform = transform,
+                            outdir = study$outdir,
+                            zeros = zeros,
+                            HC3 = HC3)
+      study$model <<- model
 
-      result <- try(study$startStatMapJob())
+      result <- try(model$startJob())
       if (inherits(result, 'try-error')) {
         return(makeErrorResponse(list(error = unbox(as.character(result)))))
       }

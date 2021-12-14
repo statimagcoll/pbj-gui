@@ -1,46 +1,78 @@
 PBJInference <- setRefClass(
-  Class = "PBJInference",
-  fields = c("statMap", "progressFile", "job"),
+  Class = 'PBJInference',
+  fields = c('statMap', 'statisticType', 'nboot', 'rboot', 'method', 'runMode',
+             'job'),
   methods = list(
+    initialize = function(statMap,
+                          statisticType = c('maximaAndCEI', 'maximaAndCMI',
+                                            'CEIandCMI', 'maximaCEIandCMI'),
+                          nboot = 5000, rboot = NULL,
+                          method=c('wild', 'permutation', 'nonparametric'),
+                          runMode=c('bootstrap', 'cdf')) {
+      statMap <<- statMap
+      statisticType <<- match.arg(statisticType)
+      nboot <<- nboot
+      if (is.null(rboot)) {
+        rboot <<- function(n){ (2*stats::rbinom(n, size=1, prob=0.5)-1) }
+      } else {
+        rboot <<- rboot
+      }
+      method <<- match.arg(method)
+      runMode <<- match.arg(runMode)
+
+      job <<- NULL
+    },
+
     hasJob = function() {
       return(!is.null(job))
     },
 
     startJob = function() {
       if (hasJob()) {
-        stop("job already exists!")
+        stop('job already exists!')
       }
-      progressFile <<- tempfile("inference-progress", fileext = ".json")
 
       # run pbjInference in a separate R process
-      f <- function(statMap, cfts.s, cfts.p, nboot, kernel, rboot, method,
-                    outdir, progress.file) {
+      f <- function(statMap, statistic, nboot, rboot, method, runMode) {
 
-        result <- pbj::pbjInference(statMap, cfts.s, cfts.p, nboot, kernel, rboot,
-                              method, "json", progress.file)
+        result <- pbj::pbjInference(statMap = statMap,
+                                    statistic = statistic,
+                                    nboot = nboot,
+                                    rboot = rboot,
+                                    method = method,
+                                    runMode = runMode)
 
         return(result)
       }
 
-      cfts.s <- NULL
-      cfts.p <- NULL
-      if (cftType == "s") {
-        cfts.s <- cfts
-      } else if (cftType == "p") {
-        cfts.p <- cfts
+      statistic <- NULL
+      if (statisticType == 'maximaAndCEI') {
+        statistic <- function(stat, rois=FALSE, mask, thr){
+            c(maxima=list(maxima(stat, rois=rois)), CEI=cluster(stat, mask=mask, thr=thr, rois=rois) )
+        }
+      } else if (statisticType == 'maximaAndCMI') {
+        statistic <- function(stat, rois=FALSE, mask, thr){
+          c(maxima=list(maxima(stat, rois=rois)), CMI=cluster(stat, mask=mask, thr=thr, rois=rois, method='mass') )
+        }
+      } else if (statisticType == 'CEIandCMI') {
+        statistic <- function(stat, rois=FALSE, mask, thr){
+          c(CEI=cluster(stat, mask=mask, thr=thr, rois=rois, method='extent'), CMI=cluster(stat, mask=mask, thr=thr, rois=rois, method='mass') )
+        }
+      } else if (statisticType == 'maximaCEIandCMI') {
+        statistic <- function(stat, rois=FALSE, mask, thr){
+          c(maxima=list(maxima(stat, rois=rois)), CEI=cluster(stat, mask=mask, thr=thr, rois=rois, method='extent'), CMI=cluster(stat, mask=mask, thr=thr, rois=rois, method='mass') )
+        }
       }
+
       args <- list(
-        "statMap"       = statMap,
-        "cfts.s"        = cfts.s,
-        "cfts.p"        = cfts.p,
-        "nboot"         = nboot,
-        "kernel"        = kernel,
-        "rboot"         = rboot,
-        "method"        = method,
-        "outdir"        = outdir,
-        "progress.file" = inferenceProgressFile
+        'statMap'   = statMap,
+        'statistic' = statistic,
+        'nboot'     = nboot,
+        'rboot'     = rboot,
+        'method'    = method,
+        'runMode'   = runMode
       )
-      job <<- Job$new(f, args, "stdout")
+      job <<- Job$new(f, args, 'stdout')
       return(TRUE)
     },
 
@@ -49,13 +81,6 @@ PBJInference <- setRefClass(
         return(job$readLog())
       }
       stop("job doesn't exist!")
-    },
-
-    getJobProgress = function() {
-      if (!hasJob()) {
-        stop("job doesn't exist!")
-      }
-      jsonlite::fromJSON(progressFile)
     },
 
     isJobRunning = function() {
@@ -71,7 +96,6 @@ PBJInference <- setRefClass(
       }
       result <- job$finalize()
       job <<- NULL
-      unlink(progressFile)
       return(result)
     }
   )

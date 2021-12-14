@@ -8,4 +8,4 @@ Maintainer: Jeremy Stephens <jeremy.f.stephens@vumc.org>
 Description: Visualize NIFTI images and run analyses with PBJ via web browser
 License: GPL-3
 Depends: tools, pain21, pbj, httpuv, openssl, jsonlite, callr, mime
-Suggests: RUnit
+Suggests: RUnit, mockthat, fs

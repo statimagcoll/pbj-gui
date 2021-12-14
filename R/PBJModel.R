@@ -44,9 +44,21 @@ PBJModel <- setRefClass(
                     formImages, robust, transform, outdir, zeros, HC3,
                     mc.cores) {
 
-        result <- pbj::lmPBJ(images, formfull, formred, mask, data, W, Winv,
-                             template, formImages, robust, transform, outdir,
-                             zeros, HC3, mc.cores)
+        result <- pbj::lmPBJ(images = images,
+                             form = formfull,
+                             formred = formred,
+                             mask = mask,
+                             data = data,
+                             W = W,
+                             Winv = Winv,
+                             template = template,
+                             formImages = formImages,
+                             robust = robust,
+                             transform = transform,
+                             outdir = outdir,
+                             zeros = zeros,
+                             HC3 = HC3,
+                             mc.cores = mc.cores)
         return(result)
       }
 
