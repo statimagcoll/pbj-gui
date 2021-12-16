@@ -196,3 +196,121 @@ testBrowseWithCsvType <- function() {
   checkEquals(file.path(dir, 'baz.csv'), body$files[2, 'path'])
   checkEquals(file.path(dir, 'qux.rds'), body$files[3, 'path'])
 }
+
+testCreateFolder <- function() {
+  dir <- tempfile('dir')
+  fs::dir_create(dir)
+  on.exit(unlink(dir, recursive = TRUE))
+  app <- App$new()
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createFolder",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(list(path = dir, name = "foo"), auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(200, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"success":true}', as.character(result$body))
+  checkTrue(dir.exists(file.path(dir, "foo")))
+}
+
+testCheckDatasetRequiresExistingFile <- function() {
+  app <- App$new()
+  params <- list(path = "/foo/bar.csv")
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/checkDataset",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"path":["does not exist"]}', as.character(result$body))
+}
+
+testCheckDatasetRequiresValidFiletype <- function() {
+  path <- tempfile(fileext = ".txt")
+  fs::file_create(path)
+  app <- App$new()
+  params <- list(path = path)
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/checkDataset",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  expectedBody <- '{"path":["must match pattern: \\\\.(csv|rds)$"]}'
+  checkEquals(expectedBody, as.character(result$body), paste("Expected:", expectedBody, "Got:", result$body))
+}
+
+testCheckDatasetRequiresColumnWithImages <- function() {
+  path <- tempfile(fileext = ".csv")
+  write.csv(mtcars, path)
+  on.exit(unlink(path))
+
+  app <- App$new()
+  params <- list(path = path)
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/checkDataset",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  expectedBody <- '{"path":["does not contain file paths to NIFTI images"]}'
+  checkEquals(expectedBody, as.character(result$body), paste("Expected:", expectedBody, "Got:", result$body))
+}
+
+testCheckDataset <- function() {
+  path <- tempfile(fileext = ".csv")
+  df <- mtcars
+  df$foo <- "/foo/bar/baz.nii.gz"
+  write.csv(df, path)
+  on.exit(unlink(path))
+
+  app <- App$new()
+  params <- list(path = path)
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/checkDataset",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(200, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  expectedBody <- toJSON(list(
+    path = path,
+    columns = list(
+      list(name = "foo", values = df$foo)
+    )
+  ), auto_unbox = TRUE)
+  checkEquals(expectedBody, result$body, paste("Expected:", expectedBody, "Got:", result$body))
+}
