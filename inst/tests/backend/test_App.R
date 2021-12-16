@@ -314,3 +314,297 @@ testCheckDataset <- function() {
   ), auto_unbox = TRUE)
   checkEquals(expectedBody, result$body, paste("Expected:", expectedBody, "Got:", result$body))
 }
+
+testCreateStudyRequiresDataset <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  params <- list(
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"dataset":["is required"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresOutcomeColumn <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    #outcomeColumn = "images",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"outcomeColumn":["is required"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresExistingOutcomeColumn <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "foo",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"outcomeColumn":["is not present in dataset"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresStringOutcomeColumn <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "n",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"outcomeColumn":["must contain a character vector"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresNiftiOutcomeColumn <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "study",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"outcomeColumn":["must only contain NIFTI file names"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresOutcomeColumnWithExistingFiles <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  dataset$images[1] <- "foo.nii.gz"
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "images",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"outcomeColumn":["contains missing files: foo.nii.gz"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresMask <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "images",
+    #mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"mask":["is required"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresTemplate <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "images",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    #template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"template":["is required"]}', as.character(result$body), result$body)
+}
+
+testCreateStudyRequiresOutdir <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "images",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz')
+    #outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(400, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"outdir":["is required"]}', as.character(result$body), result$body)
+}
+
+testCreateStudy <- function() {
+  app <- App$new()
+  pain21 <- file.path(find.package('pain21'), 'pain21')
+  dataset <- pain21::pain21()$data
+  path <- tempfile(fileext = '.rds')
+  saveRDS(dataset, path)
+  params <- list(
+    dataset = path,
+    outcomeColumn = "images",
+    mask = file.path(pain21, 'mask.nii.gz'),
+    template = file.path(pain21, 'MNI152_T1_2mm_brain.nii.gz'),
+    outdir = tempdir()
+  )
+  req <- list(
+    REQUEST_METHOD = "POST",
+    PATH_INFO = "/api/createStudy",
+    QUERY_STRING = paste0("?token=", app$token),
+    rook.input = list(
+      read = function() {
+        charToRaw(toJSON(params, auto_unbox = TRUE))
+      }
+    )
+  )
+  result <- app$call(req)
+  checkEquals(200, result$status)
+  checkEquals(list("Content-Type" = "application/json"), result$headers)
+  checkEquals('{"success":true}', as.character(result$body), result$body)
+
+  study <- app$study
+  checkEquals(dataset$images, study$images)
+  checkIdentical(dataset, study$data)
+  checkEquals(params$mask, study$mask)
+  checkEquals(params$template, study$template)
+  checkEquals(params$outdir, study$outdir)
+  checkEquals(path, study$datasetPath)
+}
