@@ -1,8 +1,8 @@
 PBJ GUI
 =======
 
-This R package implements a web-based graphical user interface (GUI) for the [PBJ
-R package](https://github.com/simonvandekar/pbj) by Simon Vandekar.
+This R package implements a web-based graphical user interface (GUI) for the
+[PBJ R package](https://github.com/simonvandekar/pbj) by Simon Vandekar.
 
 
 Overall Design
@@ -36,11 +36,11 @@ how httpuv applications work, see the [httpuv
 documentation](https://github.com/rstudio/httpuv#readme).
 
 The core of the PBJ GUI web application can be found in the `App` reference
-class. In order to run the PBJ GUI web application, a user can call the `runPBJ`
-R function, which creates an instance of the `App` reference class and starts
-the httpuv web server. Creating an `App` object also generates a security token,
-which must be used to access the web application. A user would then visit
-a URL looks something like this:
+class. In order to run the PBJ GUI web application, a user can call the
+`runPBJ` R function, which creates an instance of the `App` reference class and
+starts the httpuv web server. Creating an `App` object also generates a
+security token, which must be used to access the web application. A user would
+then visit a URL that looks something like this:
 `http://localhost:37212/?token=abcdef1234567890abcdef12`.
 
 #### App
@@ -105,9 +105,9 @@ methods in the `App` reference class for performing various tasks.
 
 Apart from the `App` reference class, there are a few other reference classes
 that represent the current state of the PBJ GUI. The first one is `PBJStudy`.
-This reference class is designed to be logically separate from any HTTP requests
-encapulated in `App`. The methods in `PBJStudy` are only related to the PBJ
-study setup as a whole.
+This reference class is designed to be logically separate from any HTTP
+requests encapsulated in `App`. The methods in `PBJStudy` are only related to
+the PBJ study setup as a whole.
 
 #### PBJModel
 
@@ -123,3 +123,9 @@ between the PBJ GUI and the PBJ function `pbjInference`.
 
 The `Job` reference class is designed to run a function asynchronously by using
 the [callr](https://cran.r-project.org/package=callr) package.
+
+### Frontend Design
+
+The frontend is designed to interact with the backend/server via JSON requests.
+This design is known as a [Single-page
+application](https://en.wikipedia.org/wiki/Single-page_application).
