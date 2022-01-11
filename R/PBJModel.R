@@ -113,6 +113,19 @@ PBJModel <- setRefClass(
       result <- job$finalize()
       job <<- NULL
       return(result)
+    },
+
+    toList = function() {
+      list(
+        formfull = as.character(formfull),
+        formred = as.character(formred),
+        transform = transform,
+        weightsColumn = weightsColumn,
+        invertedWeights = invertedWeights,
+        robust = robust,
+        zeros = zeros,
+        HC3 = HC3
+      )
     }
   )
 )

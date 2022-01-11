@@ -240,7 +240,7 @@
                 <a class="nav-link disabled" id="statmap-tab" data-toggle="tab" data-target="#statmap" data-vis="#visualize-statmap" role="tab">StatMap</a>
               </li>
               <li role="presentation" class="nav-item">
-                <a class="nav-link disabled" id="sei-tab" data-toggle="tab" data-target="#sei" role="tab">SEI</a>
+                <a class="nav-link disabled" id="inference-tab" data-toggle="tab" data-target="#inference" role="tab">Inference</a>
               </li>
             </ul>
 
@@ -421,9 +421,9 @@
                 </form>
 
                 <p class="mt-4" style="border-bottom: 1px solid lightgray; font-weight: bold">
-                  Spacial extent inference (SEI)
+                  Inference
                 </p>
-                <form id="sei-form" class="mt-4">
+                <form id="inference-form" class="mt-4">
                   <fieldset class="d-flex flex-column form-group">
                     <legend>
                       Cluster forming thresholds
@@ -451,21 +451,21 @@
                         <label class="form-check-label" for="cft-type-p">p-value</label>
                       </div>
                     </div>
-                    <div id="sei-cft-groups" class="d-flex flex-row flex-wrap">
+                    <div id="inference-cft-groups" class="d-flex flex-row flex-wrap">
                       <template>
-                        <div class="d-flex flex-row align-items-center mr-3 mt-3 sei-cft-group">
-                          <input class="form-control sei-cft-input mr-1" name="cfts[]" type="number" step="0.01">
-                          <i class="fa fa-trash sei-cft-trash"></i>
+                        <div class="d-flex flex-row align-items-center mr-3 mt-3 inference-cft-group">
+                          <input class="form-control inference-cft-input mr-1" name="cfts[]" type="number" step="0.01">
+                          <i class="fa fa-trash inference-cft-trash"></i>
                         </div>
                       </template>
                     </div>
                     <div class="mt-3">
-                      <button id="sei-cft-add" class="btn btn-secondary"><i class="fa fa-plus"></i> Add</button>
+                      <button id="inference-cft-add" class="btn btn-secondary"><i class="fa fa-plus"></i> Add</button>
                     </div>
                   </fieldset>
 
                   <div class="form-group">
-                    <label for="sei-method">
+                    <label for="inference-method">
                       Resampling method
                       <i class="far fa-question-circle" title="Resampling method"
                         data-toggle="popover" data-container="body" data-trigger="hover"
@@ -473,7 +473,7 @@
                         data-content="The type of resampling method to choose. Defaults to Wild T Rademacher bootstrap. Permutation is also highly effective. The permutation method is the Freedman-Lane procedure implemented in FSL's randomise (Winkler 2014)."
                       ></i>
                     </label>
-                    <select id="sei-method" class="form-control" name="method">
+                    <select id="inference-method" class="form-control" name="method">
                       <option>t</option>
                       <option>permutation</option>
                       <option>conditional</option>
@@ -482,17 +482,17 @@
                   </div>
 
                   <div class="form-group">
-                    <label for="sei-nboot">Number of bootstrap samples</label>
-                    <input id="sei-nboot" class="form-control" name="nboot" type="number"
+                    <label for="inference-nboot">Number of bootstrap samples</label>
+                    <input id="inference-nboot" class="form-control" name="nboot" type="number"
                            step="1" min="1">
                   </div>
 
-                  <button id="sei-submit" type="submit" class="btn btn-primary active">
+                  <button id="inference-submit" type="submit" class="btn btn-primary active">
                     <span class="label">Resample</span>
                     <span class="spinner spinner-border spinner-border-sm" role="status"></span>
                     <span class="running">Running...</span>
                   </button>
-                  <div id="sei-progress" class="d-none mt-3">
+                  <div id="inference-progress" class="d-none mt-3">
                     <p></p>
                     <div class="progress">
                       <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
@@ -515,12 +515,12 @@
                 -->
               </div>
 
-              <!-- sei tab content -->
-              <div class="tab-pane" id="sei" role="tabpanel">
-                <form id="sei-cft-form" autocomplete="off">
+              <!-- inference tab content -->
+              <div class="tab-pane" id="inference" role="tabpanel">
+                <form id="inference-cft-form" autocomplete="off">
                   <div class="form-group">
-                    <label for="sei-cft">Cluster forming thresholds:</label>
-                    <select id="sei-cft" name="image">
+                    <label for="inference-cft">Cluster forming thresholds:</label>
+                    <select id="inference-cft" name="image">
                       <!--
                         option example:
 
@@ -532,12 +532,12 @@
 
                 <!-- template for individual cft values -->
                 <template>
-                  <div class="sei-cft">
+                  <div class="inference-cft">
                     <form autocomplete="off">
                       <div class="form-group">
                         <label>
                           Image:
-                          <select class="sei-cft-image" name="image">
+                          <select class="inference-cft-image" name="image">
                             <option selected>clustermap</option>
                             <option>pmap</option>
                           </select>
@@ -644,8 +644,8 @@
           <div id="visualize-statmap" class="col-8 visualize papaya-container d-none">
             <div id="visualize-statmap-papaya"></div>
           </div>
-          <div id="visualize-sei" class="col-8 visualize papaya-container d-none">
-            <div id="visualize-sei-papaya"></div>
+          <div id="visualize-inference" class="col-8 visualize papaya-container d-none">
+            <div id="visualize-inference-papaya"></div>
           </div>
         </div>
       </div>
@@ -660,74 +660,87 @@
     <script src="/papaya/papaya.js"></script>
 
     <!-- Papaya JS debug start -->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/data/sample-image.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/data/talairach-atlas-image.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/data/talairach-atlas.js"></script>-->
+    <!--
+    <script type="text/javascript" src="/papaya-debug/src/js/data/sample-image.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/data/talairach-atlas-image.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/data/talairach-atlas.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/lib/base64-binary.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/bowser.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/daikon.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/nifti-reader.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/numerics.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/pako-inflate.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/gl-matrix.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/gifti-reader.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/lib/GLU.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/lib/base64-binary.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/bowser.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/daikon.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/nifti-reader.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/numerics.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/pako-inflate.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/gl-matrix.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/gifti-reader.js"></script>
+    <script type="text/javascript" src="/papaya-debug/lib/GLU.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/constants.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/constants.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/array-utils.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/math-utils.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/object-utils.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/platform-utils.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/string-utils.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/utilities/url-utils.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/utilities/array-utils.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/utilities/math-utils.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/utilities/object-utils.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/utilities/platform-utils.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/utilities/string-utils.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/utilities/url-utils.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/core/coordinate.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/core/point.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/core/coordinate.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/core/point.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/header.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagedata.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagedescription.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagedimensions.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagerange.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/imagetype.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/nifti/header-nifti.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/dicom/header-dicom.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/orientation.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/transform.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/volume.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/voxeldimensions.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/volume/voxelvalue.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/header.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/imagedata.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/imagedescription.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/imagedimensions.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/imagerange.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/imagetype.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/nifti/header-nifti.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/dicom/header-dicom.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/orientation.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/transform.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/volume.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/voxeldimensions.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/volume/voxelvalue.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface-gifti.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface-mango.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/surface/surface-vtk.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/surface/surface.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/surface/surface-gifti.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/surface/surface-mango.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/surface/surface-vtk.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/dialog.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menu.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitem.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemcheckbox.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemradiobutton.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemfilechooser.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemrange.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemslider.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemspacer.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/ui/toolbar.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/dialog.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menu.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitem.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemcheckbox.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemradiobutton.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemfilechooser.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemrange.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemslider.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/menuitemspacer.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/ui/toolbar.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/atlas.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/colortable.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/display.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/preferences.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/screenslice.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/screensurface.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/screenvol.js"></script>-->
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/viewer/viewer.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/atlas.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/colortable.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/display.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/preferences.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/screenslice.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/screensurface.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/screenvol.js"></script>
+    <script type="text/javascript" src="/papaya-debug/src/js/viewer/viewer.js"></script>
 
-    <!--<script type="text/javascript" src="/papaya-debug/src/js/main.js"></script>-->
+    <script type="text/javascript" src="/papaya-debug/src/js/main.js"></script>
+    -->
     <!-- Papaya JS debug end -->
+
     <!-- PBJ JS -->
     <script src="/pbj-2.js"></script>
+
+    <script>
+      $(function() {
+        let windowUrl = new URL(window.location.href);
+        let token = windowUrl.searchParams.get("token");
+
+        let api = new pbj.API(token);
+        let app = new pbj.AppComponent(document.querySelector('#app'), api);
+      });
+    </script>
   </body>
 </html>

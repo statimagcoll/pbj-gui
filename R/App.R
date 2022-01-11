@@ -35,12 +35,12 @@ App <- setRefClass(
         list(method = "POST", path = "^/api/createFolder", handler = .self$createFolder),
         list(method = "POST", path = "^/api/checkDataset$", handler = .self$checkDataset),
         list(method = "POST", path = "^/api/createStudy$", handler = .self$createStudy),
-        list(method = "GET", path = "^/api/studyImage/", handler = .self$studyImage),
+        list(method = "GET", path = "^/api/studyImage/", handler = .self$getStudyImage),
         list(method = "GET", path = "^/api/hist$", handler = .self$plotHist),
         list(method = "POST", path = "^/api/createStatMap$", handler = .self$createStatMap),
         list(method = "GET", path = "^/api/statMap$", handler = .self$getStatMap),
-        list(method = "POST", path = "^/api/createSEI$", handler = .self$createSEI),
-        list(method = "GET", path = "^/api/sei$", handler = .self$getSEI)
+        list(method = "POST", path = "^/api/createInference$", handler = .self$createInference),
+        list(method = "GET", path = "^/api/inference$", handler = .self$getInference)
       )
 
       # generate a random token for this session
@@ -206,11 +206,12 @@ App <- setRefClass(
       #result$sei <- sei
 
       result <- study$toList()
+
       response <- makeJSONResponse(result, unbox = TRUE)
       return(response)
     },
 
-    # handler for GET /saveStudy
+    # handler for GET /api/saveStudy
     saveStudy = function(req, query) {
       if (is.null(study)) {
         response <- makeTextResponse('Study does not exist', 400)
@@ -221,7 +222,7 @@ App <- setRefClass(
       return(makeAttachmentResponse(path))
     },
 
-    # handler for POST /browse
+    # handler for POST /api/browse
     browse = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
@@ -279,6 +280,7 @@ App <- setRefClass(
       return(response)
     },
 
+    # handler for POST /api/createFolder
     createFolder = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
@@ -327,7 +329,7 @@ App <- setRefClass(
       }
     },
 
-    # handler for POST /checkDataset
+    # handler for POST /api/checkDataset
     checkDataset = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
@@ -398,6 +400,12 @@ App <- setRefClass(
             errors$outcomeColumn <- 'is required'
           } else if (!(params$outcomeColumn %in% names(dataset))) {
             errors$outcomeColumn <- 'is not present in dataset'
+          } else if (!is.character(dataset[[params$outcomeColumn]])) {
+            errors$outcomeColumn <- 'must contain a character vector'
+          } else if (!is.character(dataset[[params$outcomeColumn]])) {
+            errors$outcomeColumn <- 'must contain a character vector'
+          } else if (!all(grepl(niftiExt, dataset[[params$outcomeColumn]], ignore.case = TRUE))) {
+            errors$outcomeColumn <- 'must only contain NIFTI file names'
           } else {
             # check for valid filenames
             info <- file.info(dataset[[params$outcomeColumn]])
@@ -431,7 +439,7 @@ App <- setRefClass(
     },
 
     # handler for GET /api/studyImage
-    studyImage = function(req, query) {
+    getStudyImage = function(req, query) {
       # parse path
       path <- req$PATH_INFO
       parts <- strsplit(path, "/")[[1]][c(-1, -2, -3)]
@@ -454,38 +462,26 @@ App <- setRefClass(
         if (filename == basename(study$mask)) {
           candidate <- study$mask
         }
-      #} else if (parts[1] == "sei") {
-        #if (study$hasSEI()) {
-          #cftName <- parts[2]
-          #imageName <- parts[3]
-          #if (cftName %in% names(study$sei)) {
-            #cft <- study$sei[[cftName]]
-            #md <- regexpr("^(clustermap|pmap)(\\.nii(\\.gz)?)$", imageName, ignore.case = TRUE, perl = TRUE)
-            #if (md >= 0) {
-              #type <- substr(imageName, attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
-              #ext <- substr(imageName, attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
+      } else if (parts[1] == "statMap" && study$hasStatMap()) {
+        statMap <- study$statMap
+        imageType <- parts[2]
+        filename <- parts[3]
 
-              ## find candidate file
-              #if (type == "clustermap") {
-                #candidate <- study$sei[[cftName]]$clustermapfile
-              #} else if (type == "pmap") {
-                #candidate <- study$sei[[cftName]]$pmapfile
-              #}
-            #}
-          #}
-        #}
-      #} else {
-        #md <- regexpr("^(statMapStat|statMapCoef)(\\.nii(\\.gz)?)$", parts[1], ignore.case = TRUE, perl = TRUE)
-        #if (md >= 0) {
-          #type <- substr(parts[1], attr(md, 'capture.start')[1], attr(md, 'capture.start')[1] + attr(md, 'capture.length')[1] - 1)
-          #ext <- substr(parts[1], attr(md, 'capture.start')[2], attr(md, 'capture.start')[2] + attr(md, 'capture.length')[2] - 1)
-
-          #if (type == "statMapStat" && !is.null(study$statMap)) {
-            #candidate <- study$statMap$stat
-          #} else if (type == "statMapCoef" && !is.null(study$statMap)) {
-            #candidate <- study$statMap$coef
-          #}
-        #}
+        # lmPBJ won't save to files unless outdir is specified, which should
+        # always be happening here; doesn't hurt to double check
+        if (imageType == "stat") {
+          stat <- statMap$getStat()
+          if (is.character(stat) && filename == basename(stat)) {
+            candidate <- stat
+          }
+        } else if (imageType == "coef") {
+          coef <- statMap$getCoef()
+          if (is.character(coef) && filename == basename(coef)) {
+            candidate <- coef
+          }
+        }
+      } else if (parts[1] == "inference") {
+        # TODO: inference images will be handled here
       }
 
       if (!is.null(candidate) && file.exists(candidate)) {
@@ -495,7 +491,7 @@ App <- setRefClass(
       }
     },
 
-    # handler for GET /hist
+    # handler for GET /api/hist
     plotHist = function(req, query) {
       errors <- list()
       params <- query
@@ -521,7 +517,7 @@ App <- setRefClass(
       return(response)
     },
 
-    # handler for POST /createStatMap
+    # handler for POST /api/createStatMap
     createStatMap = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
@@ -634,6 +630,7 @@ App <- setRefClass(
                             formfull = formfull,
                             formred = formred,
                             mask = study$mask,
+                            data = study$data,
                             weightsColumn = weightsColumn,
                             invertedWeights = invertedWeights,
                             template = study$template,
@@ -653,41 +650,41 @@ App <- setRefClass(
       return(response)
     },
 
-    # handler for GET /statMap
+    # handler for GET /api/statMap
     getStatMap = function(req, query) {
+      if (is.null(study$model)) {
+        return(makeTextResponse('Not found', 404L))
+      }
+
       data <- list()
       status <- 200L
-
-      if (study$hasStatMapJob()) {
+      model <- study$model
+      if (model$hasJob()) {
         # job is running or just finished
-        data$log <- unbox(study$readStatMapJobLog())
+        data$log <- unbox(model$readJobLog())
 
-        if (study$isStatMapJobRunning()) {
+        if (model$isJobRunning()) {
           # job is still running
           data$status <- unbox("running")
         } else {
           # job finished successfully or failed
-          result <- study$finalizeStatMapJob()
+          result <- model$finalizeJob()
           if (inherits(result, "try-error")) {
             data$status <- unbox("failed")
             status <- 500L
           } else {
+            study$statMap <<-
+              PBJStatMap$new(
+                statMap = result,
+                template = study$template
+              )
             data$status <- unbox("finished")
           }
         }
       }
 
       if (study$hasStatMap()) {
-        # get file extension for statMap image
-        md <- regexpr(niftiExt, study$statMap$stat)
-        statExt <- substr(study$statMap$stat, md, md + attr(md, 'match.length') - 1)
-
-        md <- regexpr(niftiExt, study$statMap$coef)
-        coefExt <- substr(study$statMap$coef, md, md + attr(md, 'match.length') - 1)
-
-        data$statMap <- list(
-          statExt = statExt, coefExt = coefExt
-        )
+        data$statMap <- study$statMap$toList()
 
         if (is.null(data$status)) {
           data$status <- unbox("finished")
@@ -697,13 +694,13 @@ App <- setRefClass(
       if (length(data) == 0) {
         response <- makeTextResponse('Not found', 404L)
       } else {
-        response <- makeJSONResponse(data, status)
+        response <- makeJSONResponse(data, status, unbox = TRUE)
       }
       return(response)
     },
 
-    # handler for POST /createSEI
-    createSEI = function(req, query) {
+    # handler for POST /api/createInference
+    createInference = function(req, query) {
       result <- parsePost(req)
       if (inherits(result, 'error')) {
         # parsePost returned an error response
@@ -791,8 +788,8 @@ App <- setRefClass(
       return(response)
     },
 
-    # handler for GET /sei
-    getSEI = function(req, query) {
+    # handler for GET /api/inference
+    getInference = function(req, query) {
       data <- list()
       status <- 200L
 

@@ -114,6 +114,11 @@ the PBJ study setup as a whole.
 Similarly the `PBJModel` reference class is designed to encapsulate the
 interaction between the PBJ GUI and the PBJ function `lmPBJ`.
 
+#### PBJStatMap
+
+The `PBJStatMap` reference class is designed to wrap the statmap object created
+from `lmPBJ` and provide helper functions.
+
 #### PBJInference
 
 The `PBJInference` reference class is designed to encapsulate the interaction
@@ -129,3 +134,9 @@ the [callr](https://cran.r-project.org/package=callr) package.
 The frontend is designed to interact with the backend/server via JSON requests.
 This design is known as a [Single-page
 application](https://en.wikipedia.org/wiki/Single-page_application).
+
+Known Bugs
+----------
+
+* Variables listed in formulae are not validated to make sure they exist in
+  dataset. This can result in failed statmap creation.

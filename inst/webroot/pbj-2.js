@@ -850,12 +850,13 @@ pbj.ModelComponent = class extends pbj.Component {
       select.appendChild(option);
     }
 
-    // populate model form
     let model = study.model;
-    if (!model) {
-      return;
+    if (model) {
+      this.setModel(model);
     }
+  }
 
+  setModel(model) {
     this.form.querySelectorAll('input, select').forEach(elt => {
       if (!(elt.name in model)) {
         return;
@@ -1051,10 +1052,15 @@ pbj.StatMapComponent = class extends pbj.Component {
     super(root);
     this.api = api;
 
+    this.select = this.find('#statmap-image');
     this.setup();
   }
 
   setup() {
+    this.select.addEventListener('change', event => {
+      this.emitImageChange();
+    });
+
     /*
     $('#statmap-image').change(function(e) {
       let index = getPapayaIndex('statmap');
@@ -1117,10 +1123,34 @@ pbj.StatMapComponent = class extends pbj.Component {
     */
   }
 
-  setStudy(study) {
+  setStatMap(statMap) {
+    let template = utils.basename(statMap.template);
+    let statOption = this.select.querySelector('option[data-name="stat"]');
+    statOption.setAttribute('selected', '');
+    statOption.dataset.image = this.api.makeURL(['studyImage', 'statMap', 'stat', utils.basename(statMap.stat)]).toString();
+    statOption.dataset.template = this.api.makeURL(['studyImage', 'template', template]).toString();
+
+    let coefOption = this.select.querySelector('option[data-name="coef"]');
+    coefOption.removeAttribute('selected');
+    coefOption.dataset.image = this.api.makeURL(['studyImage', 'statMap', 'coef', utils.basename(statMap.coef)]).toString();
+    coefOption.dataset.template = this.api.makeURL(['studyImage', 'template', template]).toString();
+
+    this.emitImageChange();
   }
 
-  setStatMap(statMap) {
+  getImage() {
+    let option = this.select.selectedOptions[0];
+    let result = {
+      template: option.dataset.template,
+      image: option.dataset.image
+    };
+    return result;
+  }
+
+  emitImageChange() {
+    let data = this.getImage();
+    let event = new CustomEvent('imageChange', { detail: data });
+    this.dispatchEvent(event);
   }
 };
 
@@ -1129,10 +1159,25 @@ pbj.StatMapVisualizeComponent = class extends pbj.PapayaComponent {
     super(root);
     this.api = api;
     this.papayaName = 'visualize-statmap-papaya';
+    this.viewerCreated = false;
   }
 
-  setStatMap(statMap) {
-    //papaya.Container.addViewer(this.papayaName);
+  showImage(data) {
+    let params = [];
+    params["noNewFiles"] = true;
+    params["images"] = [];
+    if (data.template) {
+      params["images"].push(data.template);
+    }
+    params["images"].push(data.image);
+
+    if (this.viewerCreated) {
+      let cIndex = this.getPapayaIndex();
+      papaya.Container.resetViewer(cIndex, params);
+    } else {
+      papaya.Container.addViewer(this.papayaName, params);
+      this.viewerCreated = true;
+    }
   }
 };
 
@@ -1169,6 +1214,9 @@ pbj.MainComponent = class extends pbj.Component {
     this.statMapVisComponent = new pbj.StatMapVisualizeComponent(
       this.find('#visualize-statmap'), api
     );
+    this.statMapComponent.addEventListener('imageChange', event => {
+      this.statMapVisComponent.showImage(event.detail);
+    });
 
     this.nav = this.find('#pbj-nav');
 
@@ -1202,7 +1250,10 @@ pbj.MainComponent = class extends pbj.Component {
     this.studyComponent.setStudy(study);
     this.modelComponent.setStudy(study);
     this.modelVisComponent.setStudy(study);
-    this.statMapComponent.setStudy(study);
+
+    if (study.statMap) {
+      this.setStatMap(study.statMap);
+    }
   }
 
   /**
@@ -1210,7 +1261,7 @@ pbj.MainComponent = class extends pbj.Component {
    */
   setStatMap(statMap) {
     utils.removeClass(this.find('#statmap-tab'), 'disabled');
-    this.statMapVisComponent.setStatMap(statMap);
+    this.statMapComponent.setStatMap(statMap);
   }
 
   /**

@@ -102,29 +102,29 @@ table.browse tbody tr.selected td {
 }
 
 #model-submit.active span.label,
-#sei-submit.active span.label {
+#inference-submit.active span.label {
   display: inline;
 }
 
 #model-submit.active span.running,
 #model-submit.active span.spinner,
-#sei-submit.active span.running,
-#sei-submit.active span.spinner {
+#inference-submit.active span.running,
+#inference-submit.active span.spinner {
   display: none;
 }
 
 #model-submit.running span.label,
-#sei-submit.running span.label {
+#inference-submit.running span.label {
   display: none;
 }
 
 #model-submit.running span.running,
-#sei-submit.running span.running {
+#inference-submit.running span.running {
   display: inline;
 }
 
 #model-submit.running span.spinner,
-#sei-submit.running span.spinner {
+#inference-submit.running span.spinner {
   display: inline-block;
 }
 
@@ -138,17 +138,17 @@ fieldset legend {
   font-size: 1rem;
 }
 
-input.sei-cft-input {
+input.inference-cft-input {
   width: 5rem;
 }
 
-.sei-cft .table-wrapper {
+.inference-cft .table-wrapper {
   max-height: 40vh;
   overflow-y: auto;
   position: relative;
 }
 
-.sei-cft table thead th {
+.inference-cft table thead th {
   position: -webkit-sticky;
   position: sticky;
   top: 0;

@@ -69,13 +69,14 @@ PBJStudy <- setRefClass(
     },
 
     toList = function() {
-      niftiPattern <- "\\.nii(\\.gz)?$"
       list(
-        template = template,
         datasetPath = datasetPath,
+        template = template,
         images = images,
         mask = mask,
-        varInfo = describeData()
+        varInfo = describeData(),
+        model = if (hasModel()) model$toList() else NULL,
+        statMap = if (hasStatMap()) statMap$toList() else NULL
       )
     }
   )

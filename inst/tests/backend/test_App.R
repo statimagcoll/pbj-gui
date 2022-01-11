@@ -608,3 +608,6 @@ testCreateStudy <- function() {
   checkEquals(params$outdir, study$outdir)
   checkEquals(path, study$datasetPath)
 }
+
+testStudyImage <- function() {
+}
