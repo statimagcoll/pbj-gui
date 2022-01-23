@@ -113,6 +113,14 @@ pbj.API = class {
     this.request('GET', 'statMap', null, complete, failure);
   }
 
+  createInference(data, complete, failure) {
+    this.request('POST', 'createInference', data, complete, failure);
+  }
+
+  getInference(complete, failure) {
+    this.request('GET', 'inference', null, complete, failure);
+  }
+
   request(method, action, data, complete, failure) {
     let url = this.makeURL(action);
 
@@ -1053,6 +1061,11 @@ pbj.StatMapComponent = class extends pbj.Component {
     this.api = api;
 
     this.select = this.find('#statmap-image');
+    this.form = this.find('#inference-form');
+    this.submitButton = this.find('#inference-submit');
+    this.progress = this.find('#inference-progress');
+    this.progressPre = this.find('#inference-progress pre');
+
     this.setup();
   }
 
@@ -1061,66 +1074,10 @@ pbj.StatMapComponent = class extends pbj.Component {
       this.emitImageChange();
     });
 
-    /*
-    $('#statmap-image').change(function(e) {
-      let index = getPapayaIndex('statmap');
-      if (index > -1) {
-        let params = getStatMapPapayaParams();
-        if (params === undefined) {
-          console.error('statMap params is undefined!');
-          return;
-        }
-        papaya.Container.resetViewer(index, params);
-      }
-    });
-
-    $('#sei-form').submit(function(event) {
+    this.form.addEventListener('submit', event => {
       event.preventDefault();
-
-      let form = $(this);
-      let data = {
-        'token': token,
-        'cftType': form.find('input[name="cftType"]:checked').val(),
-        'cfts': form.find('input[name="cfts[]"]').map(function(i) { return $(this).val() }).get(),
-        'method': form.find('select[name="method"]').val(),
-        'nboot': form.find('input[name="nboot"]').val()
-      };
-
-      $('#sei-submit').prop('disabled', true).
-        removeClass('active').addClass('running');
-
-      $.ajax({
-        type: 'POST',
-        url: `/createSEI?token=${token}`,
-        data: JSON.stringify(data),
-        contentType: 'application/json',
-        success: function(result) {
-          setTimeout(checkSEI, 3000);
-        },
-        error: function(xhr) {
-          console.log('unknown error:', xhr);
-        }
-      });
+      this.submit();
     });
-
-    $('#sei-form #sei-cft-add').click(function(event) {
-      event.preventDefault();
-
-      // copy existing cft group
-      let elt = $('#sei-form .sei-cft-group:last-child').clone().appendTo('#sei-cft-groups');
-      elt.find('.sei-cft-trash').click(deleteSeiCft);
-    });
-
-    $('#sei-form .sei-cft-trash').click(deleteSeiCft);
-
-    //// initialize papaya if statMap tab is active
-    //if ($('#statmap-tab').hasClass('active')) {
-      //setTimeout(initStatMapPapaya, 500);
-    //}
-
-    // init popovers in statmap tab
-    $('#statmap [data-toggle="popover"]').popover({ 'html': true });
-    */
   }
 
   setStatMap(statMap) {
@@ -1138,6 +1095,10 @@ pbj.StatMapComponent = class extends pbj.Component {
     this.emitImageChange();
   }
 
+  setResample(resample) {
+    // TODO: set form options
+  }
+
   getImage() {
     let option = this.select.selectedOptions[0];
     let result = {
@@ -1151,6 +1112,68 @@ pbj.StatMapComponent = class extends pbj.Component {
     let data = this.getImage();
     let event = new CustomEvent('imageChange', { detail: data });
     this.dispatchEvent(event);
+  }
+
+  submit() {
+    let fd = new FormData(this.form);
+    let data = {
+      'method': fd.get('method'),
+      'nboot': fd.get('nboot'),
+      'max': fd.has('max'),
+      'cmi': fd.has('cmi'),
+      'cei': fd.has('cei')
+    };
+
+    this.submitButton.setAttribute('disabled', '');
+    utils.removeClass(this.submitButton, 'active');
+    utils.addClass(this.submitButton, 'running');
+
+    this.api.createInference(data,
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          // check for inference completion in 3 seconds
+          setTimeout(() => { this.checkInference() }, 3000);
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
+
+  checkInference() {
+    this.api.getInference(
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          if (result.status === 'running') {
+            utils.removeClass(this.progress, 'd-none');
+            this.progressPre.textContent = result.progress;
+
+            // wait another 3 seconds
+            setTimeout(() => { this.checkInference() }, 3000);
+          } else {
+            this.submitButton.removeAttribute('disabled');
+            utils.removeClass(this.submitButton, 'running');
+            utils.addClass(this.submitButton, 'active');
+            utils.addClass(this.progress, 'd-none');
+
+            if (result.status === 'finished') {
+              let event = new CustomEvent('inferenceCreated', { detail: result.inference });
+              this.dispatchEvent(event);
+            } else {
+              // inference creation failed
+              // FIXME
+              window.alert('inference failed!');
+            }
+          }
+        }
+      },
+      // failure
+      () => {
+      }
+    );
   }
 };
 
@@ -1181,6 +1204,32 @@ pbj.StatMapVisualizeComponent = class extends pbj.PapayaComponent {
   }
 };
 
+pbj.InferenceComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+  }
+
+  setInference(inference) {
+    this.inference = inference;
+
+    let event = new CustomEvent('inferenceSet', { detail: inference.output });
+    this.dispatchEvent(event);
+  }
+};
+
+pbj.InferenceVisualizeComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+  }
+
+  showOutput(output) {
+    let pre = this.find('pre');
+    pre.textContent = output;
+  }
+}
+
 pbj.MainComponent = class extends pbj.Component {
   constructor(root, api) {
     super(root);
@@ -1210,12 +1259,25 @@ pbj.MainComponent = class extends pbj.Component {
     });
 
     this.statMapComponent = new pbj.StatMapComponent(this.find('#statmap'), api);
+    this.statMapComponent.addEventListener('inferenceCreated', event => {
+      this.setInference(event.detail);
+      this.showTab(this.find('#inference-tab'));
+    });
 
     this.statMapVisComponent = new pbj.StatMapVisualizeComponent(
       this.find('#visualize-statmap'), api
     );
     this.statMapComponent.addEventListener('imageChange', event => {
       this.statMapVisComponent.showImage(event.detail);
+    });
+
+    this.inferenceComponent = new pbj.InferenceComponent(this.find('#inference'), api);
+
+    this.inferenceVisComponent = new pbj.InferenceVisualizeComponent(
+      this.find('#visualize-inference'), api
+    );
+    this.inferenceComponent.addEventListener('inferenceSet', event => {
+      this.inferenceVisComponent.showOutput(event.detail);
     });
 
     this.nav = this.find('#pbj-nav');
@@ -1254,6 +1316,14 @@ pbj.MainComponent = class extends pbj.Component {
     if (study.statMap) {
       this.setStatMap(study.statMap);
     }
+
+    if (study.resample) {
+      this.setResample(study.resample);
+    }
+
+    if (study.inference) {
+      this.setInference(study.inference);
+    }
   }
 
   /**
@@ -1262,6 +1332,21 @@ pbj.MainComponent = class extends pbj.Component {
   setStatMap(statMap) {
     utils.removeClass(this.find('#statmap-tab'), 'disabled');
     this.statMapComponent.setStatMap(statMap);
+  }
+
+  /**
+   * @private
+   */
+  setResample(resample) {
+    this.statMapComponent.setResample(resample);
+  }
+
+  /**
+   * @private
+   */
+  setInference(inference) {
+    utils.removeClass(this.find('#inference-tab'), 'disabled');
+    this.inferenceComponent.setInference(inference);
   }
 
   /**
@@ -1280,6 +1365,9 @@ pbj.MainComponent = class extends pbj.Component {
         break;
       case '#visualize-statmap':
         vis = this.statMapVisComponent;
+        break;
+      case '#visualize-inference':
+        vis = this.inferenceVisComponent;
         break;
     }
 

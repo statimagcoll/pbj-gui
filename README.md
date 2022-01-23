@@ -119,10 +119,15 @@ interaction between the PBJ GUI and the PBJ function `lmPBJ`.
 The `PBJStatMap` reference class is designed to wrap the statmap object created
 from `lmPBJ` and provide helper functions.
 
+#### PBJResample
+
+The `PBJResample` reference class is designed to encapsulate the interaction
+between the PBJ GUI and the PBJ function `pbjInference`.
+
 #### PBJInference
 
-The `PBJInference` reference class is designed to encapsulate the interaction
-between the PBJ GUI and the PBJ function `pbjInference`.
+The `PBJInference` reference class is designed to wrap the inference object
+created from `pbjInference` and provide helper functions.
 
 #### Job
 

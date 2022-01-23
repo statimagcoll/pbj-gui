@@ -1,7 +1,7 @@
 PBJStudy <- setRefClass(
   Class = "PBJStudy",
   fields = c("images", "mask", "data", "template", "outdir", "model",
-             "statMap", "inference", "datasetPath"),
+             "statMap", "resample", "inference", "datasetPath"),
   methods = list(
     initialize =
       function(images, mask, data = NULL, template = NULL, outdir = NULL,
@@ -16,6 +16,7 @@ PBJStudy <- setRefClass(
 
       model <<- NULL
       statMap <<- NULL
+      resample <<- NULL
       inference <<- NULL
     },
 
@@ -25,6 +26,10 @@ PBJStudy <- setRefClass(
 
     hasStatMap = function() {
       return(!is.null(statMap))
+    },
+
+    hasResample = function() {
+      return(!is.null(resample))
     },
 
     hasInference = function() {
@@ -76,7 +81,9 @@ PBJStudy <- setRefClass(
         mask = mask,
         varInfo = describeData(),
         model = if (hasModel()) model$toList() else NULL,
-        statMap = if (hasStatMap()) statMap$toList() else NULL
+        statMap = if (hasStatMap()) statMap$toList() else NULL,
+        resample = if (hasResample()) resample$toList() else NULL,
+        inference = if (hasInference()) inference$toList() else NULL
       )
     }
   )

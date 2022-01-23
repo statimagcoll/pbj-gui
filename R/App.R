@@ -710,48 +710,11 @@ App <- setRefClass(
       # validate params
       errors <- list()
       params <- result
-      cftType <- "s"
-      if (!("cftType" %in% names(params))) {
-        # missing CFT type
-        errors$cftType <- 'is required'
-      } else if (!(params$cftType %in% c("s", "p"))) {
-        errors$cftType <- 'must be "s" or "p"'
-      } else {
-        cftType <- params$cftType
-      }
-
-      cfts <- NULL
-      if (!("cfts" %in% names(params))) {
-        errors$cfts <- 'is required'
-      } else if (!is.list(params$cfts)) {
-        errors$cfts <- 'must be a list'
-      } else if (length(params$cfts) == 0) {
-        errors$cfts <- 'must have at least 1 value'
-      } else {
-        for (i in 1:length(params$cfts)) {
-          value <- as.numeric(params$cfts[[i]])
-          if (is.na(value)) {
-            errors$cfts <- 'has invalid values'
-            break
-          }
-          if (value < 0.00001) {
-            errors$cfts <- 'has values that are too small'
-            break
-          }
-          if (value > 0.99999) {
-            errors$cfts <- 'has values that are too large'
-            break
-          }
-        }
-        if (is.null(errors$cfts)) {
-          cfts <- as.numeric(params$cfts)
-        }
-      }
 
       method <- NULL
       if (!("method" %in% names(params))) {
         errors$method <- 'is required'
-      } else if (!(params$method %in% c('t', 'permutation', 'conditional', 'nonparametric'))) {
+      } else if (!(params$method %in% c('wild', 'permutation', 'nonparametric'))) {
         errors$method <- 'is invalid'
       } else {
         method <- params$method
@@ -769,16 +732,52 @@ App <- setRefClass(
         }
       }
 
+      max <- FALSE
+      if ("max" %in% names(params)) {
+        if (isTRUE(params$max)) {
+          max <- TRUE
+        } else if (isFALSE(params$max)) {
+          max <- FALSE
+        } else {
+          errors$max <- 'must be either true or false'
+        }
+      }
+
+      cmi <- FALSE
+      if ("cmi" %in% names(params)) {
+        if (isTRUE(params$cmi)) {
+          cmi <- TRUE
+        } else if (isFALSE(params$cmi)) {
+          cmi <- FALSE
+        } else {
+          errors$cmi <- 'must be either true or false'
+        }
+      }
+
+      cei <- FALSE
+      if ("cei" %in% names(params)) {
+        if (isTRUE(params$cei)) {
+          cei <- TRUE
+        } else if (isFALSE(params$cei)) {
+          cei <- FALSE
+        } else {
+          errors$cei <- 'must be either true or false'
+        }
+      }
+
       if (length(errors) > 0) {
         return(makeErrorResponse(errors))
       }
 
-      study$cftType <<- cftType
-      study$cfts <<- cfts
-      study$method <<- method
-      study$nboot <<- nboot
+      resample <- PBJResample$new(statMap = study$statMap$statMap,
+                                  nboot = nboot,
+                                  method = method,
+                                  max = max,
+                                  CMI = cmi,
+                                  CEI = cei)
+      study$resample <<- resample
 
-      result <- try(study$startSEIJob())
+      result <- try(resample$startJob())
       if (inherits(result, 'try-error')) {
         cat(capture.output(print(result)), file=stderr())
         return(makeErrorResponse(list(error = as.character(result))))
@@ -790,32 +789,39 @@ App <- setRefClass(
 
     # handler for GET /api/inference
     getInference = function(req, query) {
+      if (!study$hasResample()) {
+        return(makeTextResponse('Not found', 404L))
+      }
+      resample <- study$resample
+
       data <- list()
       status <- 200L
 
-      if (study$hasSEIJob()) {
+      if (resample$hasJob()) {
         # job is running or just finished
-        data$progress <- study$getSEIJobProgress()
+        data$progress <- resample$readJobLog()
 
-        if (study$isSEIJobRunning()) {
+        if (resample$isJobRunning()) {
           # job is still running
           data$status <- "running"
         } else {
           # job finished successfully or failed
-          result <- study$finalizeSEIJob()
+          result <- resample$finalizeJob()
           if (inherits(result, "try-error")) {
             data$status <- "failed"
             status <- 500L
           } else {
+            study$inference <<-
+              PBJInference$new(
+                inference = result
+              )
             data$status <- "finished"
           }
         }
       }
 
-      if (study$hasSEI()) {
-        seiTemplate <- getTemplate("sei.html")
-        vars <- getTemplateVars()
-        data$html <- whisker::whisker.render(seiTemplate, data = vars)
+      if (study$hasInference()) {
+        data$inference <- study$inference$toList()
 
         if (is.null(data$status)) {
           data$status <- "finished"
