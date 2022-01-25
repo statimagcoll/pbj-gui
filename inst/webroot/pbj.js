@@ -184,6 +184,10 @@ pbj.Component = class extends EventTarget {
 };
 
 pbj.PapayaComponent = class extends pbj.Component {
+  constructor(root) {
+    super(root);
+    this.viewerCreated = false;
+  }
 
   getPapayaIndex(parentName) {
     if (typeof(this.papayaName) !== 'string') {
@@ -199,8 +203,8 @@ pbj.PapayaComponent = class extends pbj.Component {
   }
 
   resetPapaya() {
-    let id = this.getPapayaIndex();
-    if (id >= 0) {
+    if (this.viewerCreated) {
+      let id = this.getPapayaIndex();
       papaya.Container.resetViewer(id);
     }
   }
@@ -823,6 +827,7 @@ pbj.StudyVisualizeComponent = class extends pbj.PapayaComponent {
 
   setup() {
     papaya.Container.addViewer(this.papayaName);
+    this.viewerCreated = true;
   }
 
   showImage(data) {
@@ -1203,7 +1208,6 @@ pbj.StatMapVisualizeComponent = class extends pbj.PapayaComponent {
     super(root);
     this.api = api;
     this.papayaName = 'visualize-statmap-papaya';
-    this.viewerCreated = false;
   }
 
   showImage(data) {
