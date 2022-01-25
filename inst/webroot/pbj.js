@@ -1122,7 +1122,31 @@ pbj.StatMapComponent = class extends pbj.Component {
   }
 
   setResample(resample) {
-    // TODO: set form options
+    if (!resample) return;
+
+    this.form.querySelectorAll('input, select').forEach(elt => {
+      if (!(elt.name in resample)) {
+        return;
+      }
+      if (elt.tagName === 'INPUT') {
+        switch (elt.type) {
+          case 'text':
+            elt.value = resample[elt.name];
+            break;
+          case 'checkbox':
+            elt.checked = resample[elt.name];
+            break;
+        }
+      } else if (elt.tagName === 'SELECT') {
+        for (let i = 0; i < elt.options.length; i++) {
+          let option = elt.options[i];
+          if (option.value == resample[elt.name]) {
+            option.setAttribute('selected', '');
+            break;
+          }
+        }
+      }
+    });
   }
 
   getImage() {
@@ -1146,8 +1170,8 @@ pbj.StatMapComponent = class extends pbj.Component {
       'method': fd.get('method'),
       'nboot': fd.get('nboot'),
       'max': fd.has('max'),
-      'cmi': fd.has('cmi'),
-      'cei': fd.has('cei')
+      'CMI': fd.has('CMI'),
+      'CEI': fd.has('CEI')
     };
 
     this.submitButton.setAttribute('disabled', '');

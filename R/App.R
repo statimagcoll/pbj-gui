@@ -743,25 +743,25 @@ App <- setRefClass(
         }
       }
 
-      cmi <- FALSE
-      if ("cmi" %in% names(params)) {
-        if (isTRUE(params$cmi)) {
-          cmi <- TRUE
-        } else if (isFALSE(params$cmi)) {
-          cmi <- FALSE
+      CMI <- FALSE
+      if ("CMI" %in% names(params)) {
+        if (isTRUE(params$CMI)) {
+          CMI <- TRUE
+        } else if (isFALSE(params$CMI)) {
+          CMI <- FALSE
         } else {
-          errors$cmi <- 'must be either true or false'
+          errors$CMI <- 'must be either true or false'
         }
       }
 
-      cei <- FALSE
-      if ("cei" %in% names(params)) {
-        if (isTRUE(params$cei)) {
-          cei <- TRUE
-        } else if (isFALSE(params$cei)) {
-          cei <- FALSE
+      CEI <- FALSE
+      if ("CEI" %in% names(params)) {
+        if (isTRUE(params$CEI)) {
+          CEI <- TRUE
+        } else if (isFALSE(params$CEI)) {
+          CEI <- FALSE
         } else {
-          errors$cei <- 'must be either true or false'
+          errors$CEI <- 'must be either true or false'
         }
       }
 
@@ -773,8 +773,8 @@ App <- setRefClass(
                                   nboot = nboot,
                                   method = method,
                                   max = max,
-                                  CMI = cmi,
-                                  CEI = cei)
+                                  CMI = CMI,
+                                  CEI = CEI)
       study$resample <<- resample
 
       result <- try(resample$startJob())
