@@ -1,183 +1,712 @@
-var browsePath, token, statMapInfo, seiInfo;
-function checkDataset(path) {
-  if (typeof(token) === 'undefined') {
-    console.error('token is undefined!');
-    return;
+let utils = {
+  addClass: function(elt, className) {
+    $(elt).addClass(className);
+  },
+
+  removeClass: function(elt, className) {
+    $(elt).removeClass(className);
+  },
+
+  toggleClass: function(elt, className) {
+    $(elt).toggleClass(className);
+  },
+
+  showModal: function(elt) {
+    $(elt).modal('show');
+  },
+
+  hideModal: function(elt) {
+    $(elt).modal('hide');
+  },
+
+  showTab: function(elt) {
+    $(elt).tab('show');
+  },
+
+  formatDateTime: function(date) {
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    if (month < 10) {
+      month = `0${month}`;
+    }
+    let day = date.getDate();
+    if (day < 10) {
+      day = `0${day}`;
+    }
+    let hours = date.getHours();
+    if (hours < 10) {
+      hours = `0${hours}`;
+    }
+    let minutes = date.getMinutes();
+    if (minutes < 10) {
+      minutes = `0${minutes}`;
+    }
+    let seconds = date.getSeconds();
+    if (seconds < 10) {
+      seconds = `0${seconds}`;
+    };
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  },
+
+  basename: function(filename) {
+    let parts;
+    if (filename.match(/^[a-zA-Z]:\\/)) {
+      // windows filename
+      parts = filename.split('\\');
+    } else {
+      parts = filename.split('/');
+    }
+    return parts[parts.length-1];
+  }
+};
+
+let pbj = {};
+
+pbj.API = class {
+  constructor(token) {
+    this.token = token;
   }
 
-  let modal = $('#modal');
-  let selectButton = modal.find('#modal-select-button');
-  selectButton.prop('disabled', true).off('click');
-  $.ajax({
-    type: 'POST',
-    url: `/checkDataset?token=${token}`,
-    data: JSON.stringify({ path: path }),
-    contentType: 'application/json',
-    dataType: 'html',
-    success: function(html) {
-      modal.find('.modal-title').text('Assign dataset columns');
-      modal.find('.modal-footer .text').text('');
-
-      // Replace the content
-      modal.find('.modal-body').html(html);
-      modal.modal('show');
-
-      modal.find('form input').change(function(event) {
-        let set = modal.find('form input:checked');
-        selectButton.prop('disabled', set.length != 1);
-      });
-
-      selectButton.click(function(event) {
-        event.preventDefault();
-        setFile('dataset', modal.find('form').data('path'));
-        modal.find('input:checked').each(function(index) {
-          let obj = $(this);
-          let name = obj.attr('name');
-          let value = obj.val();
-          $('#study-dataset-' + name).val(value);
-        });
-        $('#study-dataset-columns').collapse('show');
-        modal.modal('hide');
-      });
-    },
-    error: function(xhr) {
-      let content = '<pre>' + xhr.responseText + '</pre>';
-      modal.find('#browse-error').html(content).removeClass('d-none');
+  makeURL(action) {
+    let windowUrl = new URL(window.location.href);
+    if (Array.isArray(action)) {
+      action = action.join("/");
     }
-  });
-}
 
-function setFile(name, path) {
-  $('#study-selected-' + name).text(path);
-  $('#study-' + name).val(path);
-
-  let invalid = false;
-  $('#welcome-form input:required').each(function() {
-    if ($(this).val() === "") {
-      invalid = true;
-      return(false);
-    }
-  });
-  $('#study-submit').prop('disabled', invalid);
-}
-
-function browse(name, type, path) {
-  if (typeof(token) === 'undefined') {
-    console.error('token is undefined!');
-    return;
+    let url = new URL(`/api/${action}`, windowUrl);
+    url.searchParams.append('token', this.token);
+    return url;
   }
 
-  // save browse path for subsequent calls
-  browsePath = path;
+  getFileRoot(complete, failure) {
+    this.request('GET', 'fileRoot', null, complete, failure);
+  }
 
-  let modal = $('#modal');
-  let selectButton = modal.find('#modal-select-button');
-  selectButton.off('click');
+  getStudy(complete, failure) {
+    this.request('GET', 'study', null, complete, failure);
+  }
 
-  let payload = { type: type, path: path };
-  $.ajax({
-    type: 'POST',
-    url: `/browse?token=${token}`,
-    data: JSON.stringify(payload),
-    contentType: 'application/json',
-    dataType: 'json',
-    success: function(data) {
-      modal.find('.modal-title').text('Select ' + name);
-      modal.find('.modal-footer .text').text('File pattern: ' + data.glob);
+  createStudy(data, complete, failure) {
+    this.request('POST', 'createStudy', data, complete, failure);
+  }
 
-      // Replace the content
-      modal.find('.modal-body').html(data.html);
+  browse(type, path, complete, failure) {
+    let data = { type: type, path: path };
+    this.request('POST', 'browse', data, complete, failure);
+  }
 
-      let table = modal.find('table.browse');
-      table.find('tbody tr.file td').click(function(event) {
-        let obj = $(event.target).parent();
-        obj.siblings('.selected').removeClass('selected');
-        obj.toggleClass('selected');
-        selectButton.prop('disabled', table.find('tr.selected').length == 0);
-      });
-      table.find('tbody tr.folder td').dblclick(function(event) {
-        let obj = $(event.target).parent();
-        obj.addClass('focused');
-        browse(name, type, obj.data('path'));
-      });
-      selectButton.prop('disabled', table.find('tr.selected').length == 0);
+  createFolder(path, name, complete, failure) {
+    let data = { path: path, name: name };
+    this.request('POST', 'createFolder', data, complete, failure);
+  }
 
-      // Select file if user clicks on select button
-      selectButton.on('click', function(event) {
-        event.preventDefault();
-        let selectedPath = table.find('tr.selected').data('path');
-        if (name == 'dataset') {
-          checkDataset(selectedPath);
-        } else {
-          setFile(name, selectedPath);
-          modal.modal('hide');
+  checkDataset(path, complete, failure) {
+    let data = { path: path };
+    this.request('POST', 'checkDataset', data, complete, failure);
+  }
+
+  createStatMap(data, complete, failure) {
+    this.request('POST', 'createStatMap', data, complete, failure);
+  }
+
+  getStatMap(complete, failure) {
+    this.request('GET', 'statMap', null, complete, failure);
+  }
+
+  createInference(data, complete, failure) {
+    this.request('POST', 'createInference', data, complete, failure);
+  }
+
+  getInference(complete, failure) {
+    this.request('GET', 'inference', null, complete, failure);
+  }
+
+  request(method, action, data, complete, failure) {
+    let url = this.makeURL(action);
+
+    let xhr = new XMLHttpRequest();
+    if (complete) {
+      xhr.addEventListener('load', (event) => {
+        let result = xhr.responseText;
+        if (xhr.getResponseHeader('Content-Type') == 'application/json') {
+          result = JSON.parse(result);
         }
+        complete(result, xhr.status);
       });
-
-      // Select file if user double clicks on a file row
-      table.find('tbody tr.file td').dblclick(function(event) {
-        let obj = $(event.target).parent();
-        let selectedPath = obj.data('path');
-        if (name == 'dataset') {
-          checkDataset(selectedPath);
-        } else {
-          setFile(name, selectedPath);
-          modal.modal('hide');
-        }
-      });
-
-      modal.find('button[name="parent"]').click(function(event) {
-        event.preventDefault();
-        let path = $(this).data('path');
-        browse(name, type, path);
-      });
-
-      modal.find('form').submit(function(event) {
-        event.preventDefault();
-        let obj = $(event.target);
-        let newPath = obj.find('input[name="path"]').val();
-        browse(name, type, newPath);
-      });
-
-      modal.modal('show')
-    },
-    error: function(xhr) {
-      if (typeof(xhr.responseJSON) === 'undefined') {
-        console.log('unknown error:', xhr);
+    }
+    xhr.addEventListener('error', (event) => {
+      console.error(xhr, event);
+      if (failure) {
+        failure(event);
       }
-      $('#modal').find('form').append('<i class="fa fa-exclamation-triangle text-danger"></i>');
-    }
-  });
-}
+    });
+    xhr.open(method, url.toString());
 
-function initWelcome() {
-  if (typeof(token) === 'undefined') {
-    console.error('token is undefined!');
-    return;
+    if (data) {
+      xhr.send(JSON.stringify(data));
+    } else {
+      xhr.send();
+    }
+  }
+};
+
+pbj.Component = class extends EventTarget {
+  constructor(root) {
+    super();
+    if (root === null || root === undefined) {
+      throw new Error('root is required');
+    }
+    this.root = root;
   }
 
-  $('#welcome-form button.browse').click(function(event) {
-    event.preventDefault();
-    let obj = $(event.target);
-    browse(obj.data('name'), obj.data('type'), browsePath);
-  });
+  show() {
+    utils.removeClass(this.root, 'd-none');
+  }
 
-  $('#welcome-form').submit(function(event) {
-    event.preventDefault();
+  hide() {
+    utils.addClass(this.root, 'd-none');
+  }
 
-    let payload = {};
-    $(this).find('input').each(function(index) {
-      let obj = $(this);
-      payload[obj.attr('name')] = obj.val();
+  find(selector) {
+    return this.root.querySelector(selector);
+  }
+
+  findAll(selector) {
+    return this.root.querySelectorAll(selector);
+  }
+};
+
+pbj.PapayaComponent = class extends pbj.Component {
+
+  getPapayaIndex(parentName) {
+    if (typeof(this.papayaName) !== 'string') {
+      throw new Error('this.papayaName is not set!');
+    }
+
+    for (let i = 0; i < papayaContainers.length; i++) {
+      if (papayaContainers[i].containerHtml.parent().is(`#${this.papayaName}`)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+};
+
+pbj.Dialog = class extends pbj.Component {
+  show() {
+    utils.showModal(this.root);
+  }
+
+  hide() {
+    utils.hideModal(this.root);
+  }
+};
+
+pbj.BrowseComponent = class extends pbj.Dialog {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.emptyElt = this.find('#browse-empty');
+    this.filesElt = this.find('#browse-files');
+    this.sizeElt = this.filesElt.querySelector('table thead th.size');
+    this.tbodyElt = this.filesElt.querySelector('table tbody');
+    this.template = this.find('template#browse-file-row');
+
+    // setup parent button event
+    let parentButton = this.find('#browse-parent');
+    parentButton.addEventListener('click', event => {
+      event.preventDefault();
+      this.browseParent();
     });
 
-    $.ajax({
-      type: 'POST',
-      url: `/createStudy?token=${token}`,
-      data: JSON.stringify(payload),
-      contentType: 'application/json',
-      dataType: 'json',
-      success: function(data) {
+
+    // setup new folder button
+    this.folderButton = this.find('#browse-folder-button');
+    this.folderButton.addEventListener('click', event => {
+      event.preventDefault();
+      this.folderButton.setAttribute('disabled', '');
+      this.addNewFolderPlaceholder();
+    });
+
+    // set up cancel button
+    let cancelButton = this.find('#browse-cancel-button');
+    cancelButton.addEventListener('click', event => {
+      event.preventDefault();
+      this.hide();
+    });
+
+    // set up select button
+    this.selectButton = this.find('#browse-select-button');
+    this.selectButton.addEventListener('click', event => {
+      event.preventDefault();
+      let selectedRow = this.find('tr.selected');
+      this.chooseRow(selectedRow);
+    });
+  }
+
+  setName(name, label) {
+    this.name = name;
+
+    if (label === undefined) {
+      label = name;
+    }
+
+    // set title
+    let title = this.find('.modal-title');
+    title.textContent = `Select ${label}`;
+  }
+
+  setParent(parent) {
+    this.parent = parent;
+  }
+
+  setGlob(glob) {
+    // set footer
+    let footer = this.find('.modal-footer .text');
+    if (typeof(glob) === 'string' && glob.length > 0) {
+      footer.textContent = `File pattern: ${glob}`;
+    } else {
+      footer.textContent = '';
+    }
+  }
+
+  setType(type) {
+    this.type = type;
+
+    if (type == 'dir') {
+      utils.removeClass(this.folderButton, 'd-none');
+      utils.addClass(this.sizeElt, 'd-none');
+    } else {
+      utils.addClass(this.folderButton, 'd-none');
+      utils.removeClass(this.sizeElt, 'd-none');
+    }
+  }
+
+  setPath(path) {
+    this.path = path;
+    this.find('#browse-input').value = path;
+  }
+
+  setFiles(files) {
+    // clear any existing rows
+    this.tbodyElt.innerHTML = '';
+
+    if (files.length == 0) {
+      utils.removeClass(this.emptyElt, 'd-none');
+      utils.addClass(this.filesElt, 'd-none');
+    } else {
+      utils.addClass(this.emptyElt, 'd-none');
+      utils.removeClass(this.filesElt, 'd-none');
+
+      for (let file of files) {
+        let frag = this.template.content.cloneNode(true);
+        let row = frag.querySelector('tr');
+        row.dataset.type = file.isdir ? 'folder' : 'file';
+        row.dataset.path = file.path;
+
+        let cells = frag.querySelectorAll('td');
+        cells[0].querySelector('i').setAttribute('class', `fa fa-${row.dataset.type}`);
+        cells[1].textContent = file.name;
+        if (this.type === 'dir') {
+          utils.addClass(cells[2], 'd-none');
+        } else {
+          cells[2].textContent = file.isdir ? '' : file.size;
+        }
+        cells[3].textContent = file.mtime;
+        cells.forEach(cell => {
+          cell.addEventListener('click', event => {
+            event.preventDefault();
+            if (event.detail == 1) {
+              this.selectRow(row);
+            } else if (event.detail == 2) {
+              this.chooseRow(row, true);
+            }
+          });
+        })
+        this.tbodyElt.append(frag);
+      }
+
+      utils.removeClass(this.filesElt, 'd-none');
+    }
+  }
+
+  selectRow(row) {
+    let selectedRow = row.parentNode.querySelector('tr.selected');
+    utils.removeClass(selectedRow, 'selected');
+    if (selectedRow != row) {
+      utils.addClass(row, 'selected');
+      this.selectButton.removeAttribute('disabled');
+    } else {
+      this.selectButton.setAttribute('disabled', '');
+    }
+  }
+
+  chooseRow(row, dblclick) {
+    if (dblclick === undefined) {
+      dblclick = false;
+    }
+
+    if (row.dataset.type == 'folder') {
+      if (this.type != 'dir' || dblclick) {
+        this.browse(row.dataset.path);
+        return;
+      }
+    }
+
+    let event = new CustomEvent('chooseFile', {
+      detail: { path: row.dataset.path, parent: this.path }
+    });
+    this.dispatchEvent(event);
+    this.hide();
+  }
+
+  browseParent() {
+    if (typeof(this.parent) !== 'string') {
+      throw new Error('parent is not set!');
+    }
+    this.browse(this.parent);
+  }
+
+  browse(path) {
+    if (path === undefined) {
+      if (this.path !== undefined) {
+        path = this.path;
+      } else {
+        throw new Error('path is missing');
+      }
+    }
+    let warning = this.find('form i.fa-exclamation-triangle');
+    if (warning) {
+      warning.remove();
+    }
+
+    this.api.browse(this.type, path,
+      // request completed
+      data => {
+        this.setGlob(data.glob);
+        this.setParent(data.parent);
+        this.setPath(data.path);
+        this.setFiles(data.files);
+        this.show();
+        this.selectButton.setAttribute('disabled', '');
+        this.folderButton.removeAttribute('disabled');
+      },
+      // request failed
+      () => {
+        let form = this.find('form');
+        form.insertAdjacentHTML('beforeend', '<i class="fa fa-exclamation-triangle text-danger"></i>');
+      }
+    );
+  }
+
+  addNewFolderPlaceholder() {
+    utils.addClass(this.emptyElt, 'd-none');
+    utils.removeClass(this.filesElt, 'd-none');
+
+    let frag = this.template.content.cloneNode(true);
+    let row = frag.querySelector('tr');
+    let cells = row.querySelectorAll('td');
+    let input = document.createElement('input');
+    input.setAttribute('type', 'text');
+    input.setAttribute('class', 'border');
+    input.value = 'New folder';
+
+    let mtime = utils.formatDateTime(new Date());
+
+    cells[0].querySelector('i').setAttribute('class', `fa fa-folder`);
+    cells[1].innerHTML = '';
+    cells[1].appendChild(input);
+    if (this.type === 'dir') {
+      utils.addClass(cells[2], 'd-none');
+    } else {
+      cells[2].textContent = '';
+    }
+    cells[3].textContent = mtime;
+    this.tbodyElt.insertAdjacentElement('afterbegin', row);
+
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        row.remove();
+        this.folderButton.removeAttribute('disabled');
+      } else if (event.key == 'Enter') {
+        event.stopPropagation();
+        let value = event.target.value;
+        if (value.length > 0) {
+          let customEvent = new CustomEvent('createFolder', {
+            detail: {
+              path: this.path,
+              name: value
+            }
+          });
+          this.dispatchEvent(customEvent);
+        }
+      }
+    });
+    input.focus();
+  }
+};
+
+pbj.CheckDatasetComponent = class extends pbj.Dialog {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.form = this.find('form');
+
+    // set up select button
+    this.selectButton = this.find('#check-dataset-select-button');
+    this.selectButton.addEventListener('click', clickEvent => {
+      clickEvent.preventDefault();
+
+      let fd = new FormData(this.form);
+      let event = new CustomEvent('datasetChecked', {
+        detail: {
+          path: this.path,
+          outcomeColumn: fd.get('outcome')
+        }
+      });
+      this.dispatchEvent(event);
+      this.hide();
+    });
+  }
+
+  setPath(path) {
+    this.path = path;
+    this.find('#check-dataset-path').textContent = path;
+  }
+
+  setColumns(columns) {
+    this.form.innerHTML = '';
+
+    let template = this.find('template#check-dataset-column');
+    for (let column of columns) {
+      let frag = template.content.cloneNode(true);
+
+      let input = frag.querySelector('input');
+      let inputId = `check-dataset-column-${column.name}`;
+      input.setAttribute('id', inputId);
+      input.value = column.name
+      input.addEventListener('change', event => {
+        this.selectButton.removeAttribute('disabled');
+      });
+
+      let label = frag.querySelector('label');
+      label.setAttribute('for', inputId);
+
+      let span = frag.querySelector('span.column-name');
+      span.textContent = column.name;
+
+      let link = frag.querySelector('a');
+      let dataEltId = `check-dataset-column-${column.name}-data`;
+      link.setAttribute('href', '#' + dataEltId);
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        let div = this.find(event.target.getAttribute('href'));
+        utils.toggleClass(div, 'd-none');
+      });
+
+      let div = frag.querySelector('div.column-data');
+      div.setAttribute('id', dataEltId);
+
+      let ul = div.querySelector('ul');
+      for (let value of column.values) {
+        let li = document.createElement('li');
+        li.textContent = value;
+        ul.appendChild(li);
+      }
+
+      this.form.appendChild(frag);
+    }
+  }
+
+  checkDataset(path) {
+    this.selectButton.setAttribute('disabled', '');
+
+    this.api.checkDataset(path,
+      // request completed
+      data => {
+        this.setPath(data.path);
+        this.setColumns(data.columns);
+        this.show();
+      },
+      // request failed
+      () => {
+        /*
+        let content = '<pre>' + xhr.responseText + '</pre>';
+        modal.find('#browse-error').html(content).utils.removeClass('d-none');
+        */
+      }
+    );
+  }
+};
+
+pbj.WelcomeComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.browseComponent = new pbj.BrowseComponent(this.find('#browse-modal'), api);
+    this.checkDatasetComponent = new pbj.CheckDatasetComponent(
+      this.find('#check-dataset-modal'), api);
+
+    this.welcomeForm = this.find('#welcome-form');
+    this.submitButton = this.welcomeForm.querySelector('#study-submit');
+
+    this.setup();
+  }
+
+  setup() {
+    let browseButtons = this.welcomeForm.querySelectorAll('button.browse');
+    browseButtons.forEach(button => {
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        this.browse(button.dataset.name, button.dataset.type);
+      });
+    });
+
+    this.browseComponent.addEventListener('createFolder', event => {
+      this.createFolder(event);
+    });
+
+    this.welcomeForm.addEventListener('submit', event => {
+      this.submitForm(event);
+    });
+
+    this.checkForm();
+  }
+
+  setBrowsePath(path) {
+    this.browsePath = path;
+  }
+
+  browse(name, type) {
+    if (typeof(this.browsePath) !== 'string') {
+      throw new Error('browsePath has not been set!');
+    }
+    let callback, label;
+    switch (name) {
+      case 'dataset':
+        callback = this.checkDataset;
+        break;
+      case 'mask':
+        callback = this.setMaskPath;
+        break;
+      case 'template':
+        callback = this.setTemplatePath;
+        break;
+      case 'outdir':
+        callback = this.setOutdir;
+        label = "output directory"
+        break;
+    }
+
+    let modal = this.browseComponent;
+    modal.setName(name, label);
+    modal.setType(type);
+
+    // remove old listener
+    if (this.chooseFileListener !== undefined) {
+      modal.removeEventListener('chooseFile', this.chooseFileListener);
+    }
+
+    this.chooseFileListener = (event) => {
+      callback.call(this, event.detail.path, event.detail.parent);
+    };
+    modal.addEventListener('chooseFile', this.chooseFileListener);
+
+    modal.browse(this.browsePath);
+  }
+
+  createFolder(event) {
+    this.api.createFolder(event.detail.path, event.detail.name,
+      // complete
+      (result, status) => {
+        if (status == 200) {
+          this.browseComponent.browse();
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
+
+  checkDataset(path, parentPath) {
+    this.setBrowsePath(parentPath);
+
+    let modal = this.checkDatasetComponent;
+    modal.addEventListener('datasetChecked', event => {
+      this.setDataset(event.detail.path, event.detail.outcomeColumn);
+    }, { once: true });
+    modal.checkDataset(path);
+  }
+
+  setDataset(path, outcomeColumn) {
+    this.find('#study-dataset').value = path;
+    this.find('#study-dataset-outcome').value = outcomeColumn;
+    utils.removeClass(this.find('#study-dataset-columns'), 'd-none');
+    this.checkForm();
+  }
+
+  setMaskPath(path, parentPath) {
+    this.setBrowsePath(parentPath);
+    this.find('#study-mask').value = path;
+    this.checkForm();
+  }
+
+  setTemplatePath(path, parentPath) {
+    this.setBrowsePath(parentPath);
+    this.find('#study-template').value = path;
+    this.checkForm();
+  }
+
+  setOutdir(path, parentPath) {
+    this.setBrowsePath(parentPath);
+    this.find('#study-outdir').value = path;
+    this.checkForm();
+  }
+
+  checkForm() {
+    // check manually because readonly inputs aren't validated properly natively
+    let fd = new FormData(this.welcomeForm);
+    let ok = true;
+    for (let key of ['dataset', 'outcomeColumn', 'mask', 'template', 'outdir']) {
+      let value = fd.get(key);
+      if (value === null || value === '') {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) {
+      this.submitButton.removeAttribute('disabled');
+    } else {
+      this.submitButton.setAttribute('disabled', '');
+    }
+  }
+
+  submitForm(event) {
+    event.preventDefault();
+
+    let data = {};
+    let fd = new FormData(this.welcomeForm);
+    for (let pair of fd) {
+      data[pair[0]] = pair[1];
+    }
+
+    this.api.createStudy(data,
+      // complete
+      (result, status) => {
+        if (status !== 200) {
+          console.error(result, status);
+          return;
+        }
+
+        let event = new CustomEvent('studyCreated', { detail: result });
+        this.dispatchEvent(event);
+
+        /*
         $('#study').html(data.study);
         $('#model').html(data.model);
         $('#welcome').fadeOut('fast', function() {
@@ -185,419 +714,704 @@ function initWelcome() {
         });
         //$('#visualize-content').html(data.visualize);
         //$('#model-content').html(data.model);
-        //$('#visualize-link').removeClass('disabled').tab('show');
-        //$('#model-link').removeClass('disabled');
+        //$('#visualize-link').utils.removeClass('disabled').tab('show');
+        //$('#model-link').utils.removeClass('disabled');
+        */
       },
-      error: function(xhr) {
-        if (typeof(xhr.responseJSON) === 'undefined') {
-          console.log('unknown error:', xhr);
-        }
+      // failed
+      () => {
       }
+    );
+  }
+};
+
+pbj.StudyComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.select = this.find('#study-image');
+
+    this.setup();
+  }
+
+  /**
+   * @private
+   */
+  setup() {
+    this.select.addEventListener('change', event => {
+      this.emitImageChange();
     });
-  });
-}
-
-function checkStatMap() {
-  if (typeof(token) === 'undefined') {
-    console.error('token is undefined!');
-    return;
   }
 
-  $.ajax({
-    type: 'GET',
-    url: `/statMap?token=${token}`,
-    contentType: 'application/json',
-    success: function(result) {
-      //let log = $('#statmap-log');
-      //log.text(result.log).removeClass('d-none');
-
-      if (result.status == 'running') {
-        setTimeout(checkStatMap, 3000);
-      } else if (result.status == 'finished') {
-        //console.log('statmap finished, setting up interface');
-
-        // hide job log
-        //log.addClass('d-none');
-
-        // set statmap tab content
-        //console.log('set statmap tab content');
-        $('#statmap').html(result.html).ready(initStatMap);
-
-        // enable statmap nav link and show tab
-        //console.log('enable statmap nav link and show tab');
-        $('#statmap-tab').removeClass('disabled').tab('show');
-
-        // re-enable model form submit button
-        //console.log('re-enable model form submit button');
-        $('#model-submit').prop('disabled', false).
-          removeClass('running').addClass('active');
-
-        //console.log('done setting up statmap interface');
-      }
-    },
-    error: function(xhr) {
-      console.log('unknown error:', xhr);
-      $('#model-submit').prop('disabled', false).removeClass('running');
-    }
-  });
-}
-
-function getStudyPapayaParams() {
-  let active = $('#study-data-row option:selected');
-  let template = active.data('template');
-  let outcome = active.data('outcome');
-
-  let result = [];
-  result["noNewFiles"] = true;
-  result["images"] = [];
-  if (template) {
-    result["images"].push(template);
-  }
-  result["images"].push(outcome);
-  return(result);
-}
-
-function addModelHist(id, name) {
-  let url = `/hist?token=${token}&var=${name}"`;
-  $(`<img id="hist-${id}" src="${url}">`).appendTo('#visualize-model');
-}
-
-function initStudyPapaya() {
-  //console.log('running initStudyPapaya');
-  let params = getStudyPapayaParams();
-  papaya.Container.addViewer('visualize-study-papaya', params);
-}
-
-function getPapayaIndex(parentName) {
-  for (let i = 0; i < papayaContainers.length; i++) {
-    if (papayaContainers[i].containerHtml.parent().is(`#visualize-${parentName}-papaya`)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-function initMain() {
-  if (typeof(token) === 'undefined') {
-    console.error('token is undefined!');
-    return;
-  }
-
-  // hook up select box in study tab
-  $('#study-data-row').change(function(e) {
-    let index = getPapayaIndex('study');
-    if (index > -1) {
-      let params = getStudyPapayaParams();
-      papaya.Container.resetViewer(index, params);
-    }
-  });
-
-  // add initial model histograms
-  let modelVisForm = $('#model-vars-form');
-  modelVisForm.find('input.toggle:checked').each(function() {
-    let obj = $(this);
-    addModelHist(obj.data('id'), obj.attr('name'));
-  });
-
-  // hook up histogram checkboxes in model tab
-  modelVisForm.find('input.toggle').change(function(event) {
-    let obj = $(event.target);
-    let id = obj.data('id');
-    let img = $(`#visualize-model #hist-${id}`);
-    if (obj.is(':checked')) {
-      img.fadeIn('fast');
-
-      let all = modelVisForm.find('input.toggle:not(:checked)').length == 0;
-      $('#model-vars-show-all').prop('checked', all);
-    } else {
-      img.fadeOut('fast');
-      $('#model-vars-show-all').prop('checked', false);
-    }
-  });
-
-  $('#model-vars-show-all').change(function(event) {
-    let obj = $(this);
-    if (obj.is(':checked')) {
-      modelVisForm.find('input.toggle:not(:checked)').
-        prop('checked', true).change();
-    } else {
-      modelVisForm.find('input.toggle:checked').
-        prop('checked', false).change();
-    }
-  });
-
-  // hook up statmap creation form in model tab
-  $('#model-form').submit(function(event) {
-    event.preventDefault();
-
-    let form = $(this);
-    let data = {
-      'token': token,
-      'formfull': form.find('input[name="formfull"]').val(),
-      'formred':  form.find('input[name="formred"]').val(),
-      'weightsColumn': form.find('select[name="weightsColumn"]').val(),
-      'invertedWeights': form.find('input[name="invertedWeights"]').is(":checked"),
-      'robust': form.find('input[name="robust"]').is(":checked"),
-      'transform': form.find('select[name="transform"]').val(),
-      'zeros': form.find('input[name="zeros"]').is(":checked"),
-      'HC3': form.find('input[name="HC3"]').is(":checked"),
+  /**
+   * @private
+   */
+  getImage() {
+    let option = this.select.selectedOptions[0];
+    let result = {
+      template: option.dataset.template,
+      outcome: option.dataset.outcome
     };
+    return result;
+  }
 
-    $('#model-submit').prop('disabled', true).
-      removeClass('active').addClass('running');
+  /**
+   * @private
+   */
+  emitImageChange() {
+    let data = this.getImage();
+    let event = new CustomEvent('imageChange', { detail: data });
+    this.dispatchEvent(event);
+  }
 
-    $.ajax({
-      type: 'POST',
-      url: `/createStatMap?token=${token}`,
-      data: JSON.stringify(data),
-      contentType: 'application/json',
-      success: function(result) {
-        setTimeout(checkStatMap, 3000);
-      },
-      error: function(xhr) {
-        console.log('unknown error:', xhr);
+  /**
+   * @public
+   */
+  setStudy(study) {
+    this.study = study;
+
+    // show dataset path
+    this.find('#study-dataset-path').textContent = study.datasetPath;
+
+    // setup image options
+    let template;
+    if (study.template) {
+      template = utils.basename(study.template);
+    }
+
+    let select = this.find('#study-image');
+    select.innerHTML = '';
+    this.study.images.forEach((image, index) => {
+      let option = document.createElement('option');
+      let basename = utils.basename(image);
+      option.dataset.outcome = this.api.makeURL(['studyImage', 'outcome', index+1, basename]).toString();
+      if (this.study.template) {
+        option.dataset.template = this.api.makeURL(['studyImage', 'template', template]).toString();
       }
+
+      option.textContent = basename;
+      select.appendChild(option);
     });
-  });
 
-  // toggle study visualization on study tab change
-  $('#main a[data-toggle="tab"]').on('show.bs.tab', function(event) {
-    let prev, prevName;
-    if (typeof(event.relatedTarget) !== 'undefined') {
-      prev = $(event.relatedTarget);
-      prevName = prev.data('target');
+    this.emitImageChange();
+  }
+};
+
+pbj.StudyVisualizeComponent = class extends pbj.PapayaComponent {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+    this.papayaName = 'visualize-study-papaya';
+
+    this.setup();
+  }
+
+  setup() {
+    papaya.Container.addViewer(this.papayaName);
+  }
+
+  showImage(data) {
+    let params = [];
+    params["noNewFiles"] = true;
+    params["images"] = [];
+    if (data.template) {
+      params["images"].push(data.template);
     }
-    let curr = $(event.target);
-    let currName = curr.data('target');
+    params["images"].push(data.outcome);
 
-    // setup papaya only after container element is visible
-    let papayaCallback = function() {
-      if (currName == 'statmap') {
-        if ($('#visualize-statmap-papaya').children().length == 0) {
-          setTimeout(initStatMapPapaya, 1);
-        }
-      //} else if (currName == 'study') {
-        //if ($('#visualize-study-papaya').children().length == 0) {
-          //setTimeout(initStudyPapaya, 1);
-        //}
-      } else if (currName == 'sei') {
-        if ($('#visualize-sei-study').children().length == 0) {
-          setTimeout(initSEIPapaya, 1);
-        }
+    let cIndex = this.getPapayaIndex();
+    papaya.Container.resetViewer(cIndex, params);
+  }
+};
+
+pbj.ModelComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.form = this.find('form');
+    this.submitButton = this.find('#model-submit');
+    this.setup();
+  }
+
+  setup() {
+    this.form.addEventListener('submit', event => {
+      event.preventDefault();
+      this.submit();
+    });
+  }
+
+  setStudy(study) {
+    // populate weights columns
+    let select = this.find('#model-weights-column');
+    select.innerHTML = '<option></option>';
+
+    let option;
+    for (let varInfo of study.varInfo) {
+      if (!varInfo.num) {
+        continue;
       }
-    };
 
-    if (typeof(prev) !== 'undefined') {
-      $(`#${prevName}`).fadeOut('fast', function() {
-        $(`#${currName}`).fadeIn('fast');
-      });
-      $(`#visualize-${prevName}`).fadeOut('fast', function() {
-        $(`#visualize-${currName}`).fadeIn('fast', papayaCallback);
-      });
-    } else {
-      $(`#${currName}`).fadeIn('fast');
-      $(`#visualize-${currName}`).fadeIn('fast', papayaCallback);
+      option = document.createElement('option');
+      option.textContent = varInfo.name;
+      select.appendChild(option);
     }
-  });
 
-  // initialize papaya if study tab is active
-  if ($('#study-tab').hasClass('active')) {
-    initStudyPapaya();
+    let model = study.model;
+    if (model) {
+      this.setModel(model);
+    }
   }
 
-  // init popovers in model tab
-  $('#model [data-toggle="popover"]').popover();
-}
-
-function getStatMapPapayaParams() {
-  if (statMapInfo === undefined) {
-    console.error('statMapInfo is undefined!');
-    return undefined;
-  }
-
-  let active = $('#statmap-image option:selected');
-  let imageName = active.data('name');
-
-  let params = [];
-  params['images'] = [];
-
-  if ('template' in statMapInfo) {
-    params['images'].push(statMapInfo['template'])
-  }
-  params['images'].push(statMapInfo[imageName])
-
-  return params;
-}
-
-function initStatMapPapaya() {
-  //console.log('running initStatMapPapaya');
-  let params = getStatMapPapayaParams();
-  if (params === undefined) {
-    console.error('statMap params is undefined!');
-    return;
-  }
-
-  papaya.Container.addViewer('visualize-statmap-papaya', params);
-}
-
-function deleteSeiCft(event) {
-  event.preventDefault();
-
-  if ($('#sei-cft-groups .sei-cft-group').length == 1) {
-    // don't delete the last one
-    return;
-  }
-
-  $(event.target).parent('.sei-cft-group').remove();
-}
-
-function initStatMap() {
-  //console.log('running initStatMap');
-  $('#statmap-image').change(function(e) {
-    let index = getPapayaIndex('statmap');
-    if (index > -1) {
-      let params = getStatMapPapayaParams();
-      if (params === undefined) {
-        console.error('statMap params is undefined!');
+  setModel(model) {
+    this.form.querySelectorAll('input, select').forEach(elt => {
+      if (!(elt.name in model)) {
         return;
       }
-      papaya.Container.resetViewer(index, params);
-    }
-  });
-
-  $('#sei-form').submit(function(event) {
-    event.preventDefault();
-
-    let form = $(this);
-    let data = {
-      'token': token,
-      'cftType': form.find('input[name="cftType"]:checked').val(),
-      'cfts': form.find('input[name="cfts[]"]').map(function(i) { return $(this).val() }).get(),
-      'method': form.find('select[name="method"]').val(),
-      'nboot': form.find('input[name="nboot"]').val()
-    };
-
-    $('#sei-submit').prop('disabled', true).
-      removeClass('active').addClass('running');
-
-    $.ajax({
-      type: 'POST',
-      url: `/createSEI?token=${token}`,
-      data: JSON.stringify(data),
-      contentType: 'application/json',
-      success: function(result) {
-        setTimeout(checkSEI, 3000);
-      },
-      error: function(xhr) {
-        console.log('unknown error:', xhr);
+      if (elt.tagName === 'INPUT') {
+        switch (elt.type) {
+          case 'text':
+            elt.value = model[elt.name];
+            break;
+          case 'checkbox':
+            elt.checked = model[elt.name];
+            break;
+        }
+      } else if (elt.tagName === 'SELECT') {
+        for (let i = 0; i < elt.options.length; i++) {
+          let option = elt.options[i];
+          if (option.value == model[elt.name]) {
+            option.setAttribute('selected', '');
+            break;
+          }
+        }
       }
     });
-  });
-
-  $('#sei-form #sei-cft-add').click(function(event) {
-    event.preventDefault();
-
-    // copy existing cft group
-    let elt = $('#sei-form .sei-cft-group:last-child').clone().appendTo('#sei-cft-groups');
-    elt.find('.sei-cft-trash').click(deleteSeiCft);
-  });
-
-  $('#sei-form .sei-cft-trash').click(deleteSeiCft);
-
-  //// initialize papaya if statMap tab is active
-  //if ($('#statmap-tab').hasClass('active')) {
-    //setTimeout(initStatMapPapaya, 500);
-  //}
-
-  // init popovers in statmap tab
-  $('#statmap [data-toggle="popover"]').popover({ 'html': true });
-}
-
-function checkSEI() {
-  if (typeof(token) === 'undefined') {
-    console.error('token is undefined!');
-    return;
   }
 
-  $.ajax({
-    type: 'GET',
-    url: `/sei?token=${token}`,
-    contentType: 'application/json',
-    success: function(result) {
-      let progress = $('#sei-progress').removeClass('d-none');
-      let pct = Math.round(result.progress.n / result.progress.total * 100);
-      progress.find('p').text(`Completed ${result.progress.n} of ${result.progress.total} passes.`)
-      progress.find('.progress-bar').width(`${pct}%`);
+  addVarToFullFormula(varInfo) {
+    this.addVarToFormula('formfull', varInfo);
+  }
 
-      if (result.status == 'running') {
-        setTimeout(checkSEI, 3000);
-      } else if (result.status == 'finished') {
-        // hide job progress
-        progress.addClass('d-none');
+  addVarToReducedFormula(varInfo) {
+    this.addVarToFormula('formred', varInfo);
+  }
 
-        // set sei tab content
-        $('#sei').html(result.html).ready(initSEI);
-
-        // enable sei nav link and show tab
-        $('#sei-tab').removeClass('disabled').tab('show');
-
-        // re-enable sei form submit button
-        $('#sei-submit').prop('disabled', false).
-          removeClass('running').addClass('active');
-      }
-    },
-    error: function(xhr) {
-      console.log('unknown error:', xhr);
-      $('#sei-submit').prop('disabled', false).removeClass('running');
+  addVarToFormula(which, varInfo) {
+    let input = this.find(`form input[name="${which}"]`);
+    let formula = input.value;
+    if (formula === "~ 1" || formula === "") {
+      formula = `~ ${varInfo.name}`
+    } else {
+      formula += ` + ${varInfo.name}`
     }
-  });
-}
-
-function getSEIPapayaParams() {
-  if (seiInfo === undefined) {
-    console.error('seiInfo is undefined!');
-    return undefined;
+    input.value = formula;
   }
 
-  let cftName = $('#sei-cft').val();
-  let imageName = $(`#sei-cft-${cftName}-visualize-form select`).val();
+  submit() {
+    let fd = new FormData(this.form);
+    let data = {
+      'formfull': fd.get('formfull'),
+      'formred':  fd.get('formred'),
+      'weightsColumn': fd.get('weightsColumn'),
+      'invertedWeights': fd.has('invertedWeights'),
+      'robust': fd.has('robust'),
+      'transform': fd.get('transform'),
+      'zeros': fd.has('zeros'),
+      'HC3': fd.has('HC3')
+    };
 
-  let params = [];
-  params['images'] = [];
+    this.submitButton.setAttribute('disabled', '');
+    utils.removeClass(this.submitButton, 'active');
+    utils.addClass(this.submitButton, 'running');
 
-  if ('template' in seiInfo) {
-    params['images'].push(seiInfo['template'])
-  }
-  params['images'].push(seiInfo['cfts'][cftName][imageName])
-
-  return params;
-}
-
-function initSEIPapaya() {
-  //console.log('running initSEIPapaya');
-  let params = getSEIPapayaParams();
-  if (params === undefined) {
-    console.error('sei params is undefined!');
-    return;
-  }
-
-  papaya.Container.addViewer('visualize-sei-papaya', params);
-}
-
-function initSEI() {
-  $('#sei-cft, select.sei-cft-image').change(function(e) {
-    let cftName = $('#sei-cft').val();
-    let index = getPapayaIndex('sei');
-    if (index > -1) {
-      let params = getSEIPapayaParams();
-      if (params === undefined) {
-        console.error('sei params is undefined!');
-        return;
+    this.api.createStatMap(data,
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          // check for statMap completion in 3 seconds
+          setTimeout(() => { this.checkStatMap() }, 3000);
+        }
+      },
+      // failure
+      () => {
       }
-      papaya.Container.resetViewer(index, params);
+    );
+  }
+
+  checkStatMap() {
+    this.api.getStatMap(
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          if (result.status === 'running') {
+            // wait another 3 seconds
+            setTimeout(() => { this.checkStatMap() }, 3000);
+          } else {
+            this.submitButton.removeAttribute('disabled');
+            utils.removeClass(this.submitButton, 'running');
+            utils.addClass(this.submitButton, 'active');
+
+            if (result.status === 'finished') {
+              let event = new CustomEvent('statMapCreated', { detail: result.statMap });
+              this.dispatchEvent(event);
+            } else {
+              // statMap creation failed
+              // FIXME
+              window.alert('statMap failed!');
+            }
+          }
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
+};
+
+pbj.ModelVisualizeComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.setup();
+  }
+
+  setup() {
+    let link = this.find('#visualize-model-var a.back');
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      this.showVars();
+    });
+
+    let fullBtn = this.find('#visualize-model-add-full');
+    fullBtn.addEventListener('click', event => {
+      event.preventDefault();
+      this.dispatchEvent(new CustomEvent('addVarToFullFormula', {
+        detail: this.currentVarInfo
+      }));
+    });
+
+    let reducedBtn = this.find('#visualize-model-add-reduced');
+    reducedBtn.addEventListener('click', event => {
+      event.preventDefault();
+      this.dispatchEvent(new CustomEvent('addVarToReducedFormula', {
+        detail: this.currentVarInfo
+      }));
+    });
+  }
+
+  setStudy(study) {
+    // add model var info rows
+    let template = this.find('template#visualize-model-var-row');
+    let tbody = this.find('#visualize-model-vars table tbody');
+    for (let varInfo of study.varInfo) {
+      if (!varInfo.num) {
+        continue;
+      }
+
+      let frag = template.content.cloneNode(true);
+      let row = frag.querySelector('tr');
+      let cells = frag.querySelectorAll('td');
+      cells.forEach(cell => {
+        let type = cell.dataset.type;
+        if (type === null) {
+          return;
+        }
+
+        let value = varInfo[type];
+        if (value !== null && value !== undefined) {
+          cell.insertAdjacentHTML('afterbegin', value.toString());
+        }
+      });
+      row.querySelector('a').addEventListener('click', event => {
+        event.preventDefault();
+        this.showVar(varInfo);
+      });
+      tbody.append(frag);
+    }
+  }
+
+  showVars() {
+    utils.addClass(this.find('#visualize-model-var'), 'd-none')
+    utils.removeClass(this.find('#visualize-model-vars'), 'd-none')
+  }
+
+  showVar(varInfo) {
+    this.currentVarInfo = varInfo;
+
+    let div = this.find('#visualize-model-var');
+    div.querySelectorAll('span').forEach(elt => {
+      elt.textContent = varInfo[elt.dataset.type];
+    });
+    let histUrl = this.api.makeURL('hist');
+    histUrl.searchParams.append('var', varInfo.name);
+    div.querySelector('img').setAttribute('src', histUrl.toString());
+
+    utils.addClass(this.find('#visualize-model-vars'), 'd-none')
+    utils.removeClass(div, 'd-none')
+  }
+};
+
+pbj.StatMapComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.select = this.find('#statmap-image');
+    this.form = this.find('#inference-form');
+    this.submitButton = this.find('#inference-submit');
+    this.progress = this.find('#inference-progress');
+    this.progressPre = this.find('#inference-progress pre');
+
+    this.setup();
+  }
+
+  setup() {
+    this.select.addEventListener('change', event => {
+      this.emitImageChange();
+    });
+
+    this.form.addEventListener('submit', event => {
+      event.preventDefault();
+      this.submit();
+    });
+  }
+
+  setStatMap(statMap) {
+    let template = utils.basename(statMap.template);
+    let statOption = this.select.querySelector('option[data-name="stat"]');
+    statOption.setAttribute('selected', '');
+    statOption.dataset.image = this.api.makeURL(['studyImage', 'statMap', 'stat', utils.basename(statMap.stat)]).toString();
+    statOption.dataset.template = this.api.makeURL(['studyImage', 'template', template]).toString();
+
+    let coefOption = this.select.querySelector('option[data-name="coef"]');
+    coefOption.removeAttribute('selected');
+    coefOption.dataset.image = this.api.makeURL(['studyImage', 'statMap', 'coef', utils.basename(statMap.coef)]).toString();
+    coefOption.dataset.template = this.api.makeURL(['studyImage', 'template', template]).toString();
+
+    this.emitImageChange();
+  }
+
+  setResample(resample) {
+    // TODO: set form options
+  }
+
+  getImage() {
+    let option = this.select.selectedOptions[0];
+    let result = {
+      template: option.dataset.template,
+      image: option.dataset.image
+    };
+    return result;
+  }
+
+  emitImageChange() {
+    let data = this.getImage();
+    let event = new CustomEvent('imageChange', { detail: data });
+    this.dispatchEvent(event);
+  }
+
+  submit() {
+    let fd = new FormData(this.form);
+    let data = {
+      'method': fd.get('method'),
+      'nboot': fd.get('nboot'),
+      'max': fd.has('max'),
+      'cmi': fd.has('cmi'),
+      'cei': fd.has('cei')
+    };
+
+    this.submitButton.setAttribute('disabled', '');
+    utils.removeClass(this.submitButton, 'active');
+    utils.addClass(this.submitButton, 'running');
+
+    this.api.createInference(data,
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          // check for inference completion in 3 seconds
+          setTimeout(() => { this.checkInference() }, 3000);
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
+
+  checkInference() {
+    this.api.getInference(
+      // complete
+      (result, status) => {
+        if (status === 200) {
+          if (result.status === 'running') {
+            utils.removeClass(this.progress, 'd-none');
+            this.progressPre.textContent = result.progress;
+
+            // wait another 3 seconds
+            setTimeout(() => { this.checkInference() }, 3000);
+          } else {
+            this.submitButton.removeAttribute('disabled');
+            utils.removeClass(this.submitButton, 'running');
+            utils.addClass(this.submitButton, 'active');
+            utils.addClass(this.progress, 'd-none');
+
+            if (result.status === 'finished') {
+              let event = new CustomEvent('inferenceCreated', { detail: result.inference });
+              this.dispatchEvent(event);
+            } else {
+              // inference creation failed
+              // FIXME
+              window.alert('inference failed!');
+            }
+          }
+        }
+      },
+      // failure
+      () => {
+      }
+    );
+  }
+};
+
+pbj.StatMapVisualizeComponent = class extends pbj.PapayaComponent {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+    this.papayaName = 'visualize-statmap-papaya';
+    this.viewerCreated = false;
+  }
+
+  showImage(data) {
+    let params = [];
+    params["noNewFiles"] = true;
+    params["images"] = [];
+    if (data.template) {
+      params["images"].push(data.template);
+    }
+    params["images"].push(data.image);
+
+    if (this.viewerCreated) {
+      let cIndex = this.getPapayaIndex();
+      papaya.Container.resetViewer(cIndex, params);
+    } else {
+      papaya.Container.addViewer(this.papayaName, params);
+      this.viewerCreated = true;
+    }
+  }
+};
+
+pbj.InferenceComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+  }
+
+  setInference(inference) {
+    this.inference = inference;
+
+    let event = new CustomEvent('inferenceSet', { detail: inference.output });
+    this.dispatchEvent(event);
+  }
+};
+
+pbj.InferenceVisualizeComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+  }
+
+  showOutput(output) {
+    let pre = this.find('pre');
+    pre.textContent = output;
+  }
+}
+
+pbj.MainComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+
+    this.studyComponent = new pbj.StudyComponent(this.find('#study'), api);
+
+    this.studyVisComponent = new pbj.StudyVisualizeComponent(
+      this.find('#visualize-study'), api);
+    this.studyComponent.addEventListener('imageChange', event => {
+      this.studyVisComponent.showImage(event.detail);
+    });
+
+    this.modelComponent = new pbj.ModelComponent(this.find('#model'), api);
+    this.modelComponent.addEventListener('statMapCreated', event => {
+      this.setStatMap(event.detail);
+      this.showTab(this.find('#statmap-tab'));
+    });
+
+    this.modelVisComponent = new pbj.ModelVisualizeComponent(
+      this.find('#visualize-model'), api);
+    this.modelVisComponent.addEventListener('addVarToFullFormula', event => {
+      this.modelComponent.addVarToFullFormula(event.detail);
+    });
+    this.modelVisComponent.addEventListener('addVarToReducedFormula', event => {
+      this.modelComponent.addVarToReducedFormula(event.detail);
+    });
+
+    this.statMapComponent = new pbj.StatMapComponent(this.find('#statmap'), api);
+    this.statMapComponent.addEventListener('inferenceCreated', event => {
+      this.setInference(event.detail);
+      this.showTab(this.find('#inference-tab'));
+    });
+
+    this.statMapVisComponent = new pbj.StatMapVisualizeComponent(
+      this.find('#visualize-statmap'), api
+    );
+    this.statMapComponent.addEventListener('imageChange', event => {
+      this.statMapVisComponent.showImage(event.detail);
+    });
+
+    this.inferenceComponent = new pbj.InferenceComponent(this.find('#inference'), api);
+
+    this.inferenceVisComponent = new pbj.InferenceVisualizeComponent(
+      this.find('#visualize-inference'), api
+    );
+    this.inferenceComponent.addEventListener('inferenceSet', event => {
+      this.inferenceVisComponent.showOutput(event.detail);
+    });
+
+    this.nav = this.find('#pbj-nav');
+
+    this.setup();
+  }
+
+  /**
+   * @private
+   */
+  setup() {
+    // add url with token parameter to saveStudy button
+    let saveButton = this.find('#save-button');
+    let url = this.api.makeURL('saveStudy');
+    saveButton.setAttribute('href', url.toString());
+
+    // hook up tab nav
+    this.nav.querySelectorAll('a.nav-link').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        this.showTab(link);
+      });
+    });
+
+    this.showTab(this.find('#study-tab'));
+  }
+
+  /**
+   * @public
+   */
+  setStudy(study) {
+    this.studyComponent.setStudy(study);
+    this.modelComponent.setStudy(study);
+    this.modelVisComponent.setStudy(study);
+
+    if (study.statMap) {
+      this.setStatMap(study.statMap);
     }
 
-    $('.sei-cft').addClass('d-none');
-    $(`#sei-cft-${cftName}`).removeClass('d-none');
-  });
-}
+    if (study.resample) {
+      this.setResample(study.resample);
+    }
+
+    if (study.inference) {
+      this.setInference(study.inference);
+    }
+  }
+
+  /**
+   * @private
+   */
+  setStatMap(statMap) {
+    utils.removeClass(this.find('#statmap-tab'), 'disabled');
+    this.statMapComponent.setStatMap(statMap);
+  }
+
+  /**
+   * @private
+   */
+  setResample(resample) {
+    this.statMapComponent.setResample(resample);
+  }
+
+  /**
+   * @private
+   */
+  setInference(inference) {
+    utils.removeClass(this.find('#inference-tab'), 'disabled');
+    this.inferenceComponent.setInference(inference);
+  }
+
+  /**
+   * @private
+   */
+  showTab(link) {
+    utils.showTab(link);
+
+    let vis;
+    switch (link.dataset.vis) {
+      case "#visualize-study":
+        vis = this.studyVisComponent;
+        break;
+      case "#visualize-model":
+        vis = this.modelVisComponent;
+        break;
+      case '#visualize-statmap':
+        vis = this.statMapVisComponent;
+        break;
+      case '#visualize-inference':
+        vis = this.inferenceVisComponent;
+        break;
+    }
+
+    if (this.currentVisComponent) {
+      this.currentVisComponent.hide();
+    }
+    this.currentVisComponent = vis;
+    vis.show();
+  }
+};
+
+pbj.AppComponent = class extends pbj.Component {
+  constructor(root, api) {
+    super(root);
+    this.api = api;
+    this.welcomeComponent = new pbj.WelcomeComponent(this.find('#welcome'), api);
+    this.mainComponent = new pbj.MainComponent(this.find('#main'), api);
+
+    this.welcomeComponent.addEventListener('studyCreated', event => {
+      this.getStudy();
+    });
+
+    this.getStudy();
+  }
+
+  getStudy() {
+    this.api.getStudy(
+      // request completed
+      (data, status) => {
+        if (status == 200) {
+          this.setStudy(data);
+        } else {
+          this.welcomeComponent.show();
+          this.api.getFileRoot(data => {
+            this.welcomeComponent.setBrowsePath(data.fileRoot);
+          });
+        }
+      }
+    );
+  }
+
+  setStudy(study) {
+    this.mainComponent.setStudy(study);
+    this.welcomeComponent.hide();
+    this.mainComponent.show();
+  }
+};
