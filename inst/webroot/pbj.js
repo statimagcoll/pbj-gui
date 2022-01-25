@@ -23,6 +23,13 @@ let utils = {
     $(elt).tab('show');
   },
 
+  enablePopover: function(elt, html) {
+    if (html === undefined) {
+      html = false;
+    }
+    $(elt).popover({ html: html })
+  },
+
   formatDateTime: function(date) {
     let year = date.getFullYear();
     let month = date.getMonth() + 1;
@@ -189,6 +196,13 @@ pbj.PapayaComponent = class extends pbj.Component {
       }
     }
     return -1;
+  }
+
+  resetPapaya() {
+    let id = this.getPapayaIndex();
+    if (id >= 0) {
+      papaya.Container.resetViewer(id);
+    }
   }
 };
 
@@ -840,6 +854,9 @@ pbj.ModelComponent = class extends pbj.Component {
       event.preventDefault();
       this.submit();
     });
+    this.findAll('[data-toggle="popover"]').forEach(elt => {
+      utils.enablePopover(elt);
+    });
   }
 
   setStudy(study) {
@@ -1077,6 +1094,10 @@ pbj.StatMapComponent = class extends pbj.Component {
     this.form.addEventListener('submit', event => {
       event.preventDefault();
       this.submit();
+    });
+
+    this.findAll('[data-toggle="popover"]').forEach(elt => {
+      utils.enablePopover(elt, true);
     });
   }
 
@@ -1376,6 +1397,10 @@ pbj.MainComponent = class extends pbj.Component {
     }
     this.currentVisComponent = vis;
     vis.show();
+
+    if (typeof(vis.resetPapaya) == 'function') {
+      setTimeout(() => { vis.resetPapaya(); }, 1);
+    }
   }
 };
 
