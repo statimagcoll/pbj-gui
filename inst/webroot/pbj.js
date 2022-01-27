@@ -723,18 +723,6 @@ pbj.WelcomeComponent = class extends pbj.Component {
 
         let event = new CustomEvent('studyCreated', { detail: result });
         this.dispatchEvent(event);
-
-        /*
-        $('#study').html(data.study);
-        $('#model').html(data.model);
-        $('#welcome').fadeOut('fast', function() {
-          $('#main').fadeIn('fast', initMain);
-        });
-        //$('#visualize-content').html(data.visualize);
-        //$('#model-content').html(data.model);
-        //$('#visualize-link').utils.removeClass('disabled').tab('show');
-        //$('#model-link').utils.removeClass('disabled');
-        */
       },
       // failed
       () => {

@@ -84,12 +84,12 @@ routes <<- list(
   list(method = "POST", path = "^/api/createFolder", handler = .self$createFolder),
   list(method = "POST", path = "^/api/checkDataset$", handler = .self$checkDataset),
   list(method = "POST", path = "^/api/createStudy$", handler = .self$createStudy),
-  list(method = "GET", path = "^/api/studyImage/", handler = .self$studyImage),
+  list(method = "GET", path = "^/api/studyImage/", handler = .self$getStudyImage),
   list(method = "GET", path = "^/api/hist$", handler = .self$plotHist),
   list(method = "POST", path = "^/api/createStatMap$", handler = .self$createStatMap),
   list(method = "GET", path = "^/api/statMap$", handler = .self$getStatMap),
-  list(method = "POST", path = "^/api/createSEI$", handler = .self$createSEI),
-  list(method = "GET", path = "^/api/sei$", handler = .self$getSEI)
+  list(method = "POST", path = "^/api/createInference$", handler = .self$createInference),
+  list(method = "GET", path = "^/api/inference$", handler = .self$getInference)
 )
 ```
 
@@ -138,10 +138,128 @@ the [callr](https://cran.r-project.org/package=callr) package.
 
 The frontend is designed to interact with the backend/server via JSON requests.
 This design is known as a [Single-page
-application](https://en.wikipedia.org/wiki/Single-page_application).
+application](https://en.wikipedia.org/wiki/Single-page_application). The
+frontend interface is split into two main parts: `index.html` and `pbj.js`. All
+of the static markup is located in `index.html`, and all of the dynamic
+interactions are setup in `pbj.js`. Both of these files are located in the
+`inst/webroot` directory. The main layout depends on [Bootstrap
+v4.6](https://getbootstrap.com/docs/4.6/getting-started/introduction/). All of
+the PBJ GUI JavaScript components communicate with each other using JavaScript
+events via the [EventTarget
+interface](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget).
+
+#### Startup
+
+When a user visits the PBJ GUI page, the following code runs:
+
+```js
+let windowUrl = new URL(window.location.href);
+let token = windowUrl.searchParams.get("token");
+
+let api = new pbj.API(token);
+let app = new pbj.AppComponent(document.querySelector('#app'), api);
+```
+
+This extracts the security token from the URL for further requests, and then
+creates the two top-level objects: `API` and `AppComponent`.
+
+#### AppComponent
+
+The top level JavaScript object for the frontend is `AppComponent`, which
+manages two child objects: `WelcomeComponent` and `MainComponent`. On startup,
+`AppComponent` makes the API `getStudy` call to find out if the PBJ study has
+been created yet. If so, `MainComponent` is shown. If not, `WelcomeComponent` is
+shown.
+
+#### WelcomeComponent
+
+The job of `WelcomeComponent` is to help the user setup a PBJ study. The user
+has to specify a dataset (CSV or RDS file), a mask (NIFTI file), a template
+(NIFTI file), and an output directory. `WelcomeComponent` has some
+sub-components in order to help do this: `BrowseComponent` and
+`CheckDatasetComponent`.
+
+The `BrowseComponent` is a file browser/picker dialog to let the user choose
+files/directories. It uses the API call `browse` for this purpose. Users can
+also create new folders. Folder creation happens via an emitted event and the
+`createFolder` API call.
+
+The `CheckDatasetComponent` is a dialog for picking a dataset column that has
+NIFTI files. It uses the `checkDataset` API call and emits an event when
+completed.
+
+When the user has setup the study, the `WelcomeComponent` makes the
+`createStudy` API call and emits a `studyCreated` event to notify
+`AppComponent`, which will then hide `WelcomeComponent` and show
+`MainComponent`.
+
+#### MainComponent
+
+This component contains the primary functionality of the frontend interface. It
+sets up the following children components: `StudyComponent`,
+`StudyVisualizeComponent`, `ModelComponent`, `ModelVisualizeComponent`,
+`StatMapComponent`, `StatMapVisualizeComponent`, `InferenceComponent`, and
+`InferenceVisualizeComponent`. There is a tab-based display for study, model,
+statmap, and inference, and analagous 'visualize' component for each tab.
+
+#### StudyComponent
+
+This component and its sister component `StudyVisualizeComponent` are
+responsible for displaying study data from the NIFTI files specified in the
+dataset during the study setup phase. The Papaya library is used to display
+NIFTI images via the web browser. Papaya doesn't seem to be under active
+development anymore, but there's a fork of it in the [statimagcoll
+organization](https://github.com/statimagcoll/Papaya) on GitHub that fixes a
+couple of bugs.
+
+#### ModelComponent
+
+This component is responsible for helping the user setup a `lmPBJ` function
+call. It includes a form for specifying formulae and other options that
+ultimately get passed to `lmPBJ` by the backend server. The sister component
+`ModelVisualizeComponent` has a way to explore data that could be used in
+formulae. There are some rudimentary features there that could be heavily
+expanded on.
+
+When the model form is completed and submitted, `ModelComponent` makes a
+`createStatMap` API call, which starts a separate R job to run `lmPBJ`. Every
+three seconds, the component makes a `getStatMap` API call to check on the job
+progress. When the job is finished, it emits a `statMapCreated` event that gets
+handled by `MainComponent`, which will then enable the `StatMapComponent`.
+
+#### StatMapComponent
+
+This component and its sister component `StatMapVisualizeComponent` are
+responsible for exploring the results of `lmPBJ`. Additionally,
+`StatMapComponent` includes a form for specifying arguments that ultimately get
+passed to `pbjInference` on the backend server.
+
+When the inference form is completed and submitted, `StatMapComponent` makes a
+`createInference` API call to start a separate R job to run `pbjInference`.
+Every three seconds, the component makes a `getInference` API call to check the
+status of the job. Once the job is complete, the component emits a
+`inferenceCreated` event that gets handled by `MainComponent`, which will then
+enable `InferenceComponent`.
+
+#### InferenceComponent
+
+This component and its sister component `InferenceVisualizeComponent` will be
+responsible for visualizing the results of `pbjInference`. Currently these are
+just placeholders until the visualizations are developed by the statimagcoll
+team.
+
+Tests
+-----
+
+There are some unit tests for both the backend and frontend parts of the
+application. These tests are incomplete and somewhat out of date, but the
+framework is in place to add more tests and fix existing tests. The backend
+tests use RUnit, and the frontend tests use in-browser testing with Mocha. Tests
+are located in the `inst/tests` folder.
 
 Known Bugs
 ----------
 
 * Variables listed in formulae are not validated to make sure they exist in
   dataset. This can result in failed statmap creation.
+* Factor-based variables are not displayed in the ModelVisualizeComponent
